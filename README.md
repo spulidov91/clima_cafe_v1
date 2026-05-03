@@ -1,6 +1,6 @@
-# Despliegue AWS + GitHub: API Clima Café
+# Despliegue Github + AWS + GitHub + Docker: API Clima Café
 
-Estos archivos convierten el repositorio `clima_cafe_v1` en una API desplegable en AWS EC2 con Docker.
+Estos archivos convierten el repositorio `clima_cafe_v1` en una API desplegable en AWS EC2 con Docker y una visualización con HTML + CSS + JavaScript
 
 ## Archivos que debes agregar en la raíz del repo
 
@@ -14,12 +14,18 @@ clima_cafe_v1/
 │   ├── 1_procesamiento.ipynb
 │   ├── 2_Revision de variables.ipynb
 │   └── 3_Modelado.ipynb
-├── app.py
-├── train_model.py
-├── requirements.txt
-├── Dockerfile
+├── frontend/
+│   ├── app.js
+│   ├── index.html
+│   └── styles.css
 ├── .dockerignore
-└── deploy-clima-cafe.sh
+├── .gitignore
+├── Dockerfile
+├── README.md
+├── app.py
+├── deploy-clima-cafe.sh
+├── requirements.txt
+└── train_model.py
 ```
 
 ## Flujo de la solución
@@ -85,7 +91,7 @@ Desde fuera de EC2:
 ```bash
 http://54.85.186.208:802/docs
 ```
-Una vez desplegada, la documentación interactiva queda disponible en:http://54.85.186.208:802
+Una vez desplegada, la documentación interactiva queda disponible en:  http://54.85.186.208:802/docs
 
 Consulta:
 
