@@ -252,3 +252,15 @@ def consulta(payload: ConsultaRequest):
         valor_cobertura_cop=round(valor_cobertura_cop, 2),
         mensaje=mensaje,
     )
+
+# -------------------------------
+# Frontend estático de la solución
+# -------------------------------
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
+
+@app.get("/", include_in_schema=False)
+def frontend_home():
+    return FileResponse("frontend/index.html")
