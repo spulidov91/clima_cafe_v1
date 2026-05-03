@@ -18,39 +18,103 @@ const formatterNumber = new Intl.NumberFormat("es-CO", {
 
 function setText(id, value) {
   document.getElementById(id).textContent =
-    value === null || value === undefined || value === "" ? "--" : value;
+    value === null || value === undefined || value === "" ? "Pendiente" : value;
 }
 
 function formatCOP(value) {
   if (value === null || value === undefined || isNaN(Number(value))) {
-    return "--";
+    return "Pendiente";
   }
   return formatterCOP.format(Number(value));
 }
 
 function formatUSD(value) {
   if (value === null || value === undefined || isNaN(Number(value))) {
-    return "--";
+    return "Pendiente";
   }
   return formatterUSD.format(Number(value));
 }
 
 function formatNumber(value) {
   if (value === null || value === undefined || isNaN(Number(value))) {
-    return "--";
+    return "Pendiente";
   }
   return formatterNumber.format(Number(value));
 }
 
 function formatPercent(value) {
   if (value === null || value === undefined || isNaN(Number(value))) {
-    return "--";
+    return "Pendiente";
   }
 
   const numericValue = Number(value);
   const percentValue = numericValue <= 1 ? numericValue * 100 : numericValue;
 
   return `${formatNumber(percentValue)}%`;
+}
+
+function mostrarMensaje(texto, esError = false) {
+  const mensaje = document.getElementById("mensajeResultado");
+  mensaje.classList.toggle("error", esError);
+  mensaje.textContent = texto;
+}
+
+function limpiarErrores() {
+  [
+    "numero_identidad",
+    "departamento",
+    "municipio",
+    "area_ha",
+    "year"
+  ].forEach((campo) => {
+    const error = document.getElementById(`error_${campo}`);
+    if (error) {
+      error.textContent = "";
+    }
+  });
+}
+
+function mostrarErrorCampo(campo, mensaje) {
+  const error = document.getElementById(`error_${campo}`);
+  if (error) {
+    error.textContent = mensaje;
+  }
+}
+
+function validarFormulario(payload) {
+  limpiarErrores();
+
+  let valido = true;
+
+  if (!payload.numero_identidad) {
+    mostrarErrorCampo("numero_identidad", "Ingresa el número de identidad.");
+    valido = false;
+  } else if (!/^[0-9]+$/.test(payload.numero_identidad)) {
+    mostrarErrorCampo("numero_identidad", "El número de identidad debe contener solo números.");
+    valido = false;
+  }
+
+  if (!payload.departamento) {
+    mostrarErrorCampo("departamento", "Ingresa el departamento.");
+    valido = false;
+  }
+
+  if (!payload.municipio) {
+    mostrarErrorCampo("municipio", "Selecciona un municipio.");
+    valido = false;
+  }
+
+  if (!payload.area_ha || payload.area_ha <= 0) {
+    mostrarErrorCampo("area_ha", "Ingresa un área mayor que cero.");
+    valido = false;
+  }
+
+  if (!payload.year || payload.year < 2000 || payload.year > 2100) {
+    mostrarErrorCampo("year", "Ingresa un año válido.");
+    valido = false;
+  }
+
+  return valido;
 }
 
 function normalizarMunicipioDepartamento(valor) {
@@ -81,13 +145,6 @@ function normalizarMunicipioDepartamento(valor) {
     departamento: "SANTANDER",
     etiqueta: limpio
   };
-}
-
-function mostrarMensaje(texto, esError = false) {
-  const mensaje = document.getElementById("mensajeResultado");
-
-  mensaje.classList.toggle("error", esError);
-  mensaje.textContent = texto;
 }
 
 async function cargarMunicipios() {
@@ -157,6 +214,7 @@ async function cargarMunicipios() {
     });
 
     const selected = select.options[select.selectedIndex];
+
     if (selected && selected.dataset.departamento) {
       document.getElementById("departamento").value = selected.dataset.departamento;
     }
@@ -164,7 +222,7 @@ async function cargarMunicipios() {
   } catch (error) {
     console.error("Error cargando municipios:", error);
     select.innerHTML = '<option value="">Error cargando municipios</option>';
-    mostrarMensaje("No fue posible cargar la lista de municipios. Revise el estado de la API.", true);
+    mostrarMensaje("No fue posible cargar la lista de municipios. Revisa el estado del servicio.", true);
   }
 }
 
@@ -181,10 +239,6 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
 
   const btn = document.getElementById("btnConsultar");
 
-  btn.disabled = true;
-  btn.textContent = "Calculando resultado...";
-  mostrarMensaje("Estamos calculando la estimación con la información climática y satelital disponible.");
-
   const payload = {
     numero_identidad: document.getElementById("numero_identidad").value.trim(),
     municipio: document.getElementById("municipio").value.trim(),
@@ -192,6 +246,15 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
     departamento: document.getElementById("departamento").value.trim(),
     year: Number(document.getElementById("year").value)
   };
+
+  if (!validarFormulario(payload)) {
+    mostrarMensaje("Revisa los campos marcados antes de calcular la estimación.", true);
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Calculando resultado...";
+  mostrarMensaje("Estamos calculando la estimación con la información climática y satelital disponible.");
 
   try {
     const response = await fetch(`${API_BASE}/consulta`, {
@@ -209,7 +272,7 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
       mostrarMensaje(
         data.detail
           ? `No fue posible procesar la consulta: ${JSON.stringify(data.detail)}`
-          : "No fue posible procesar la consulta. Revise los datos ingresados.",
+          : "No fue posible procesar la consulta. Revisa los datos ingresados.",
         true
       );
       return;
@@ -223,15 +286,15 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
           : null
       );
 
-    setText("trm", data.trm_cop_usd ? formatCOP(data.trm_cop_usd) : "--");
-    setText("precioInternacional", data.precio_internacional_usd_lb ? formatUSD(data.precio_internacional_usd_lb) : "--");
-    setText("precioLocal", precioLocalLb ? `${formatCOP(precioLocalLb)} / lb` : "--");
+    setText("trm", data.trm_cop_usd ? formatCOP(data.trm_cop_usd) : "Pendiente");
+    setText("precioInternacional", data.precio_internacional_usd_lb ? formatUSD(data.precio_internacional_usd_lb) : "Pendiente");
+    setText("precioLocal", precioLocalLb ? `${formatCOP(precioLocalLb)} / lb` : "Pendiente");
 
-    setText("tipoRespuesta", response.ok ? "Consulta exitosa" : "No procesada");
-    setText("cosechaEstimada", data.cosecha_estimada_ton ? `${formatNumber(data.cosecha_estimada_ton)} ton` : "--");
-    setText("valorCosecha", data.valor_estimado_cosecha_cop ? formatCOP(data.valor_estimado_cosecha_cop) : "--");
-    setText("porcentajeCobertura", data.porcentaje_cobertura !== undefined ? formatPercent(data.porcentaje_cobertura) : "--");
-    setText("valorCobertura", data.valor_cobertura_cop ? formatCOP(data.valor_cobertura_cop) : "--");
+    setText("tipoRespuesta", "Consulta exitosa");
+    setText("cosechaEstimada", data.cosecha_estimada_ton ? `${formatNumber(data.cosecha_estimada_ton)} ton` : "Pendiente");
+    setText("valorCosecha", data.valor_estimado_cosecha_cop ? formatCOP(data.valor_estimado_cosecha_cop) : "Pendiente");
+    setText("porcentajeCobertura", data.porcentaje_cobertura !== undefined ? formatPercent(data.porcentaje_cobertura) : "Pendiente");
+    setText("valorCobertura", data.valor_cobertura_cop ? formatCOP(data.valor_cobertura_cop) : "Pendiente");
 
     mostrarMensaje(
       data.mensaje ??
@@ -239,15 +302,15 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
     );
 
   } catch (error) {
-    console.error("Error consultando API:", error);
+    console.error("Error consultando el servicio:", error);
     setText("tipoRespuesta", "Error de conexión");
     mostrarMensaje(
-      "No fue posible consultar la API. Revise la conexión o el estado del servicio.",
+      "No fue posible consultar el servicio. Revisa la conexión o el estado de la aplicación.",
       true
     );
   } finally {
     btn.disabled = false;
-    btn.textContent = "Estimar mi cosecha";
+    btn.textContent = "Calcular mi estimación";
   }
 });
 
