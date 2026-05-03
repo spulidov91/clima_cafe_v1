@@ -122,6 +122,13 @@ El flujo debe ejecutarse en el siguiente orden:
 
 Este flujo permite reproducir el proceso completo desde los datos base hasta el modelo final usado por la aplicación desplegada en AWS EC2. La separación en notebooks facilita la trazabilidad del experimento, ya que cada etapa queda documentada y puede ejecutarse de manera independiente o secuencial.
 
+## Entrenamiento del modelo
+
+El modelo puede reproducirse ejecutando:
+
+```bash
+python train_model.py
+
 ## Datos utilizados
 
 Los datos del proyecto se encuentran versionados en la carpeta `Data anual/`.
