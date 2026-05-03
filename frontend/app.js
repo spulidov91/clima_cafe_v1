@@ -248,13 +248,13 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
   };
 
   if (!validarFormulario(payload)) {
-    mostrarMensaje("Revisa los campos marcados antes de calcular la estimación.", true);
+    mostrarMensaje("Por favor revisa los campos marcados antes de calcular la estimación.", true);
     return;
   }
 
   btn.disabled = true;
-  btn.textContent = "Calculando resultado...";
-  mostrarMensaje("Estamos calculando la estimación con la información climática y satelital disponible.");
+  btn.textContent = "Calculando tu estimación...";
+  mostrarMensaje("Estamos procesando la información de tu cultivo. En unos segundos verás el resultado.");
 
   try {
     const response = await fetch(`${API_BASE}/consulta`, {
@@ -286,9 +286,9 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
           : null
       );
 
-    setText("trm", data.trm_cop_usd ? formatCOP(data.trm_cop_usd) : "Pendiente");
-    setText("precioInternacional", data.precio_internacional_usd_lb ? formatUSD(data.precio_internacional_usd_lb) : "Pendiente");
-    setText("precioLocal", precioLocalLb ? `${formatCOP(precioLocalLb)} / lb` : "Pendiente");
+    setText("trm", data.trm_cop_usd ? formatCOP(data.trm_cop_usd) : "Pendiente de consulta");
+    setText("precioInternacional", data.precio_internacional_usd_lb ? formatUSD(data.precio_internacional_usd_lb) : "Pendiente de consulta");
+    setText("precioLocal", precioLocalLb ? `${formatCOP(precioLocalLb)} / lb` : "Pendiente de consulta");
 
     setText("tipoRespuesta", "Consulta exitosa");
     setText("cosechaEstimada", data.cosecha_estimada_ton ? `${formatNumber(data.cosecha_estimada_ton)} ton` : "Pendiente");
@@ -298,7 +298,7 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
 
     mostrarMensaje(
       data.mensaje ??
-      "Consulta realizada correctamente. Los resultados muestran la producción estimada y el valor aproximado de cobertura para el cultivo."
+      "Consulta realizada correctamente. Ya puedes ver una proyección de producción y el valor estimado de cobertura para tu cultivo."
     );
 
   } catch (error) {
@@ -310,7 +310,7 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
     );
   } finally {
     btn.disabled = false;
-    btn.textContent = "Calcular mi estimación";
+    btn.textContent = "Quiero estimar mi cosecha";
   }
 });
 
