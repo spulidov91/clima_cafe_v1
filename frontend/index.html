@@ -9,87 +9,201 @@
 <body>
   <main class="page">
     <section class="solution">
-      <h1>Clima Café</h1>
-      <p class="subtitle">Estimación de cosecha y cobertura para cultivo de café</p>
+      <header class="header">
+        <h1>Clima Café</h1>
+        <p class="subtitle">
+          Herramienta para estimar la producción de café y el valor de cobertura de un cultivo.
+        </p>
+      </header>
 
-      <section class="panel">
-        <h2>Información económica relevante</h2>
+      <section class="legend">
+        <div class="legend-item">
+          <span class="legend-color editable-color"></span>
+          Campos que puedes editar
+        </div>
+        <div class="legend-item">
+          <span class="legend-color reference-color"></span>
+          Datos de referencia
+        </div>
+        <div class="legend-item">
+          <span class="legend-color result-color"></span>
+          Resultados calculados
+        </div>
+      </section>
+
+      <section class="panel reference-panel">
+        <div class="section-title">
+          <span class="step">Paso 1</span>
+          <div>
+            <h2>Valores de referencia</h2>
+            <p>Estos valores se usan como base para calcular la cosecha y la cobertura.</p>
+          </div>
+        </div>
+
         <div class="economic-grid">
-          <div class="metric-card">
-            <span>TRM - COP / USD</span>
+          <div class="metric-card reference-card">
+            <span>
+              TRM - COP / USD
+              <span class="help-icon" data-tooltip="La TRM indica cuántos pesos colombianos equivalen a 1 dólar estadounidense.">?</span>
+            </span>
             <strong id="trm">--</strong>
           </div>
-          <div class="metric-card">
-            <span>Precio internacional libra de café</span>
+
+          <div class="metric-card reference-card">
+            <span>
+              Precio internacional del café
+              <span class="help-icon" data-tooltip="Valor de referencia del café en el mercado internacional, expresado por libra.">?</span>
+            </span>
             <strong id="precioInternacional">--</strong>
           </div>
-          <div class="metric-card">
-            <span>Precio local de café</span>
+
+          <div class="metric-card reference-card">
+            <span>
+              Precio local del café
+              <span class="help-icon" data-tooltip="Precio estimado del café en el mercado local, expresado por libra.">?</span>
+            </span>
             <strong id="precioLocal">--</strong>
           </div>
         </div>
       </section>
 
-      <section class="panel">
-        <h2>Recepción de información del usuario</h2>
+      <section class="panel input-panel">
+        <div class="section-title">
+          <span class="step">Paso 2</span>
+          <div>
+            <h2>Ingresa los datos del cultivo</h2>
+            <p>Completa la información necesaria para hacer la estimación.</p>
+          </div>
+        </div>
 
         <form id="consultaForm" class="form-grid">
-          <label for="numero_identidad">Número de identidad</label>
-          <input type="text" id="numero_identidad" placeholder="Ej: 1019000363" required />
+          <label for="numero_identidad">
+            Número de identidad
+            <span class="help-icon" data-tooltip="Número de identificación del productor o usuario que realiza la consulta.">?</span>
+          </label>
+          <input
+            class="editable-field"
+            type="text"
+            id="numero_identidad"
+            placeholder="Ejemplo: 1019000363"
+            required
+          />
 
-          <label for="departamento">Departamento</label>
-          <input type="text" id="departamento" value="Santander" required />
+          <label for="departamento">
+            Departamento
+            <span class="help-icon" data-tooltip="Departamento donde se encuentra ubicado el cultivo de café.">?</span>
+          </label>
+          <input
+            class="editable-field"
+            type="text"
+            id="departamento"
+            value="SANTANDER"
+            required
+          />
 
-          <label for="municipio">Municipio del cultivo</label>
-          <select id="municipio" required>
+          <label for="municipio">
+            Municipio del cultivo
+            <span class="help-icon" data-tooltip="Municipio donde está ubicado el cultivo. La lista se carga desde la API.">?</span>
+          </label>
+          <select class="editable-field" id="municipio" required>
             <option value="">Cargando municipios...</option>
           </select>
 
-          <label for="area_ha">Área cultivada, hectáreas</label>
-          <input type="number" id="area_ha" min="0.01" step="0.01" placeholder="Ej: 2.5" required />
+          <label for="area_ha">
+            Área cultivada, hectáreas
+            <span class="help-icon" data-tooltip="Cantidad de hectáreas sembradas de café que deseas consultar.">?</span>
+          </label>
+          <input
+            class="editable-field"
+            type="number"
+            id="area_ha"
+            min="0.01"
+            step="0.01"
+            placeholder="Ejemplo: 2.5"
+            required
+          />
 
-          <label for="year">Año</label>
-          <input type="number" id="year" value="2024" required />
+          <label for="year">
+            Año de consulta
+            <span class="help-icon" data-tooltip="Año para el cual deseas realizar la estimación.">?</span>
+          </label>
+          <input
+            class="editable-field"
+            type="number"
+            id="year"
+            value="2024"
+            required
+          />
 
-          <button type="submit" id="btnConsultar">Consultar estimación</button>
+          <button type="submit" id="btnConsultar">
+            Estimar mi cosecha
+          </button>
         </form>
       </section>
 
-      <section class="panel">
-        <h2>Resultado de la consulta</h2>
+      <section class="panel result-panel">
+        <div class="section-title">
+          <span class="step">Paso 3</span>
+          <div>
+            <h2>Resultado estimado</h2>
+            <p>Estos valores son calculados automáticamente por la API.</p>
+          </div>
+        </div>
 
         <div class="result-grid">
           <div class="result-row">
-            <span>Tipo de respuesta API</span>
-            <strong id="tipoRespuesta">--</strong>
+            <span>
+              Estado de la consulta
+              <span class="help-icon" data-tooltip="Indica si la API pudo procesar correctamente la información enviada.">?</span>
+            </span>
+            <strong id="tipoRespuesta" class="result-value">--</strong>
           </div>
 
           <div class="result-row">
-            <span>Cosecha estimada, toneladas</span>
-            <strong id="cosechaEstimada">--</strong>
+            <span>
+              Producción estimada
+              <span class="help-icon" data-tooltip="Cantidad estimada de café que podría producir el cultivo, expresada en toneladas.">?</span>
+            </span>
+            <strong id="cosechaEstimada" class="result-value">--</strong>
           </div>
 
           <div class="result-row">
-            <span>Valor estimado de cosecha</span>
-            <strong id="valorCosecha">--</strong>
+            <span>
+              Valor estimado de la cosecha
+              <span class="help-icon" data-tooltip="Valor económico aproximado de la producción estimada de café.">?</span>
+            </span>
+            <strong id="valorCosecha" class="result-value">--</strong>
           </div>
 
           <div class="result-row">
-            <span>Porcentaje de cobertura</span>
-            <strong id="porcentajeCobertura">--</strong>
+            <span>
+              Porcentaje cubierto
+              <span class="help-icon" data-tooltip="Porcentaje del valor estimado de la cosecha que sería cubierto.">?</span>
+            </span>
+            <strong id="porcentajeCobertura" class="result-value">--</strong>
           </div>
 
           <div class="result-row">
-            <span>Valor de la cobertura</span>
-            <strong id="valorCobertura">--</strong>
+            <span>
+              Valor estimado de la cobertura
+              <span class="help-icon" data-tooltip="Monto aproximado que cubriría la protección o cobertura del cultivo.">?</span>
+            </span>
+            <strong id="valorCobertura" class="result-value">--</strong>
           </div>
         </div>
       </section>
 
-      <section class="panel">
-        <h2>Mensaje de resultado</h2>
+      <section class="panel summary-panel">
+        <div class="section-title">
+          <span class="step">Paso 4</span>
+          <div>
+            <h2>Resumen en palabras sencillas</h2>
+            <p>Interpretación del resultado para facilitar la toma de decisiones.</p>
+          </div>
+        </div>
+
         <p id="mensajeResultado" class="message">
-          Complete el formulario y presione consultar.
+          Complete los datos del cultivo y presione “Estimar mi cosecha”.
         </p>
       </section>
     </section>

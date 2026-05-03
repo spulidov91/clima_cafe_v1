@@ -42,20 +42,22 @@ function formatNumber(value) {
   return formatterNumber.format(Number(value));
 }
 
+function formatPercent(value) {
+  if (value === null || value === undefined || isNaN(Number(value))) {
+    return "--";
+  }
+
+  const numericValue = Number(value);
+  const percentValue = numericValue <= 1 ? numericValue * 100 : numericValue;
+
+  return `${formatNumber(percentValue)}%`;
+}
+
 function normalizarMunicipioDepartamento(valor) {
-  /*
-    La API /municipios puede devolver valores como:
-    BARBOSA_SANTANDER
-
-    Para consultar /consulta necesitamos separar:
-    municipio = BARBOSA
-    departamento = SANTANDER
-  */
-
   if (!valor || typeof valor !== "string") {
     return {
       municipio: "",
-      departamento: "Santander",
+      departamento: "SANTANDER",
       etiqueta: ""
     };
   }
@@ -76,9 +78,16 @@ function normalizarMunicipioDepartamento(valor) {
 
   return {
     municipio: limpio,
-    departamento: "Santander",
+    departamento: "SANTANDER",
     etiqueta: limpio
   };
+}
+
+function mostrarMensaje(texto, esError = false) {
+  const mensaje = document.getElementById("mensajeResultado");
+
+  mensaje.classList.toggle("error", esError);
+  mensaje.textContent = texto;
 }
 
 async function cargarMunicipios() {
@@ -112,7 +121,7 @@ async function cargarMunicipios() {
       const option = document.createElement("option");
 
       let municipio = "";
-      let departamento = "Santander";
+      let departamento = "SANTANDER";
       let etiqueta = "";
 
       if (typeof item === "string") {
@@ -131,7 +140,7 @@ async function cargarMunicipios() {
         departamento =
           item.departamento ||
           item.Departamento ||
-          "Santander";
+          "SANTANDER";
 
         const normalizado = normalizarMunicipioDepartamento(municipio);
 
@@ -155,6 +164,7 @@ async function cargarMunicipios() {
   } catch (error) {
     console.error("Error cargando municipios:", error);
     select.innerHTML = '<option value="">Error cargando municipios</option>';
+    mostrarMensaje("No fue posible cargar la lista de municipios. Revise el estado de la API.", true);
   }
 }
 
@@ -170,12 +180,10 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
   event.preventDefault();
 
   const btn = document.getElementById("btnConsultar");
-  const mensaje = document.getElementById("mensajeResultado");
 
   btn.disabled = true;
-  btn.textContent = "Consultando...";
-  mensaje.classList.remove("error");
-  mensaje.textContent = "Consultando la API, por favor espere...";
+  btn.textContent = "Calculando resultado...";
+  mostrarMensaje("Estamos calculando la estimación con la información climática y satelital disponible.");
 
   const payload = {
     numero_identidad: document.getElementById("numero_identidad").value.trim(),
@@ -184,8 +192,6 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
     departamento: document.getElementById("departamento").value.trim(),
     year: Number(document.getElementById("year").value)
   };
-
-  console.log("Payload enviado a /consulta:", payload);
 
   try {
     const response = await fetch(`${API_BASE}/consulta`, {
@@ -199,10 +205,13 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
     const data = await response.json();
 
     if (!response.ok) {
-      mensaje.classList.add("error");
-      mensaje.textContent = data.detail
-        ? JSON.stringify(data.detail)
-        : "La API retornó un error en la consulta.";
+      setText("tipoRespuesta", "No procesada");
+      mostrarMensaje(
+        data.detail
+          ? `No fue posible procesar la consulta: ${JSON.stringify(data.detail)}`
+          : "No fue posible procesar la consulta. Revise los datos ingresados.",
+        true
+      );
       return;
     }
 
@@ -218,22 +227,27 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
     setText("precioInternacional", data.precio_internacional_usd_lb ? formatUSD(data.precio_internacional_usd_lb) : "--");
     setText("precioLocal", precioLocalLb ? `${formatCOP(precioLocalLb)} / lb` : "--");
 
-    setText("tipoRespuesta", data.tipo_respuesta_api ?? response.status);
+    setText("tipoRespuesta", response.ok ? "Consulta exitosa" : "No procesada");
     setText("cosechaEstimada", data.cosecha_estimada_ton ? `${formatNumber(data.cosecha_estimada_ton)} ton` : "--");
     setText("valorCosecha", data.valor_estimado_cosecha_cop ? formatCOP(data.valor_estimado_cosecha_cop) : "--");
-    setText("porcentajeCobertura", data.porcentaje_cobertura !== undefined ? `${formatNumber(data.porcentaje_cobertura)}%` : "--");
+    setText("porcentajeCobertura", data.porcentaje_cobertura !== undefined ? formatPercent(data.porcentaje_cobertura) : "--");
     setText("valorCobertura", data.valor_cobertura_cop ? formatCOP(data.valor_cobertura_cop) : "--");
 
-    mensaje.classList.remove("error");
-    mensaje.textContent = data.mensaje ?? "Consulta realizada correctamente.";
+    mostrarMensaje(
+      data.mensaje ??
+      "Consulta realizada correctamente. Los resultados muestran la producción estimada y el valor aproximado de cobertura para el cultivo."
+    );
 
   } catch (error) {
     console.error("Error consultando API:", error);
-    mensaje.classList.add("error");
-    mensaje.textContent = "No fue posible consultar la API. Revise la conexión o el estado del servicio.";
+    setText("tipoRespuesta", "Error de conexión");
+    mostrarMensaje(
+      "No fue posible consultar la API. Revise la conexión o el estado del servicio.",
+      true
+    );
   } finally {
     btn.disabled = false;
-    btn.textContent = "Consultar estimación";
+    btn.textContent = "Estimar mi cosecha";
   }
 });
 
