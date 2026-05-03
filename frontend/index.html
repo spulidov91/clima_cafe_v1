@@ -1,0 +1,131 @@
+cat <<'EOF' > frontend/index.html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clima Café</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="solution">
+      <h1>Clima Café</h1>
+      <p class="subtitle">
+        Consulta de estimación de cosecha y cobertura para cultivo de café.
+      </p>
+
+      <section class="panel">
+        <h2>Información económica relevante</h2>
+
+        <div class="economic-grid">
+          <div class="metric-card">
+            <span>TRM - COP / USD</span>
+            <strong id="trm">--</strong>
+          </div>
+
+          <div class="metric-card">
+            <span>Precio internacional libra de café</span>
+            <strong id="precioInternacional">--</strong>
+          </div>
+
+          <div class="metric-card">
+            <span>Precio local de café</span>
+            <strong id="precioLocal">--</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Recepción de información del usuario</h2>
+
+        <form id="consultaForm" class="form-grid">
+          <label for="numero_identidad">Número de identidad</label>
+          <input
+            type="text"
+            id="numero_identidad"
+            placeholder="Ej: 1019000363"
+            required
+          />
+
+          <label for="departamento">Departamento</label>
+          <input
+            type="text"
+            id="departamento"
+            value="Santander"
+            required
+          />
+
+          <label for="municipio">Municipio del cultivo</label>
+          <select id="municipio" required>
+            <option value="">Cargando municipios...</option>
+          </select>
+
+          <label for="area_ha">Área cultivada (Hectáreas)</label>
+          <input
+            type="number"
+            id="area_ha"
+            min="0.01"
+            step="0.01"
+            placeholder="Ej: 2.5"
+            required
+          />
+
+          <label for="year">Año</label>
+          <input
+            type="number"
+            id="year"
+            value="2024"
+            required
+          />
+
+          <button type="submit" id="btnConsultar">
+            Consultar estimación
+          </button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Resultado de la consulta</h2>
+
+        <div class="result-grid">
+          <div class="result-row">
+            <span>Tipo de respuesta API</span>
+            <strong id="tipoRespuesta">--</strong>
+          </div>
+
+          <div class="result-row">
+            <span>Cosecha estimada (Toneladas)</span>
+            <strong id="cosechaEstimada">--</strong>
+          </div>
+
+          <div class="result-row">
+            <span>Valor estimado de cosecha</span>
+            <strong id="valorCosecha">--</strong>
+          </div>
+
+          <div class="result-row">
+            <span>% de cobertura</span>
+            <strong id="porcentajeCobertura">--</strong>
+          </div>
+
+          <div class="result-row">
+            <span>Valor de la cobertura</span>
+            <strong id="valorCobertura">--</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Mensaje de resultado</h2>
+        <p id="mensajeResultado" class="message">
+          Complete el formulario y presione consultar.
+        </p>
+      </section>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
+EOF
