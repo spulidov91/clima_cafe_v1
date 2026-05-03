@@ -496,3 +496,10 @@ button:disabled {
     min-height: 56px;
   }
 }
+
+.editable-field:disabled {
+  background: #e5eaf2;
+  border-color: #b8c4d6;
+  color: #64748b;
+  cursor: not-allowed;
+}

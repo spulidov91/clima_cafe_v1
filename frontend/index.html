@@ -43,7 +43,6 @@
         </div>
       </section>
 
-      <!-- PASO 1 -->
       <section class="panel input-panel">
         <div class="section-title">
           <span class="step">Paso 1</span>
@@ -74,16 +73,12 @@
           <div class="form-row">
             <label for="departamento">
               Departamento
-              <span class="help-icon" data-tooltip="Departamento donde está ubicado el cultivo de café.">?</span>
+              <span class="help-icon" data-tooltip="Selecciona el departamento donde se encuentra el cultivo de café.">?</span>
             </label>
             <div class="field-block">
-              <input
-                class="editable-field"
-                type="text"
-                id="departamento"
-                value="SANTANDER"
-                required
-              />
+              <select class="editable-field" id="departamento" required>
+                <option value="">Cargando departamentos...</option>
+              </select>
               <small id="error_departamento" class="field-error"></small>
             </div>
           </div>
@@ -91,11 +86,11 @@
           <div class="form-row">
             <label for="municipio">
               Municipio del cultivo
-              <span class="help-icon" data-tooltip="Municipio donde está ubicado el cultivo. Esta lista se carga automáticamente.">?</span>
+              <span class="help-icon" data-tooltip="Selecciona el municipio donde está ubicado el cultivo. La lista se filtra según el departamento seleccionado.">?</span>
             </label>
             <div class="field-block">
-              <select class="editable-field" id="municipio" required>
-                <option value="">Cargando municipios...</option>
+              <select class="editable-field" id="municipio" required disabled>
+                <option value="">Selecciona primero un departamento</option>
               </select>
               <small id="error_municipio" class="field-error"></small>
             </div>
@@ -143,7 +138,6 @@
         </form>
       </section>
 
-      <!-- PASO 2 -->
       <section class="panel reference-panel">
         <div class="section-title">
           <span class="step">Paso 2</span>
@@ -183,7 +177,6 @@
         </div>
       </section>
 
-      <!-- PASO 3 -->
       <section class="panel result-panel">
         <div class="section-title">
           <span class="step">Paso 3</span>
@@ -236,7 +229,6 @@
         </div>
       </section>
 
-      <!-- PASO 4 -->
       <section class="panel summary-panel">
         <div class="section-title">
           <span class="step">Paso 4</span>

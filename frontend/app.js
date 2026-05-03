@@ -1,5 +1,7 @@
 const API_BASE = window.location.origin;
 
+let municipiosDisponibles = [];
+
 const formatterCOP = new Intl.NumberFormat("es-CO", {
   style: "currency",
   currency: "COP",
@@ -95,7 +97,7 @@ function validarFormulario(payload) {
   }
 
   if (!payload.departamento) {
-    mostrarErrorCampo("departamento", "Ingresa el departamento.");
+    mostrarErrorCampo("departamento", "Selecciona el departamento.");
     valido = false;
   }
 
@@ -117,121 +119,187 @@ function validarFormulario(payload) {
   return valido;
 }
 
-function normalizarMunicipioDepartamento(valor) {
-  if (!valor || typeof valor !== "string") {
-    return {
-      municipio: "",
-      departamento: "SANTANDER",
-      etiqueta: ""
-    };
-  }
+function limpiarTexto(valor) {
+  return String(valor || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
 
-  const limpio = valor.trim();
+function normalizarMunicipioDepartamento(item) {
+  let municipio = "";
+  let departamento = "";
 
-  if (limpio.includes("_")) {
-    const partes = limpio.split("_");
-    const departamento = partes.pop();
-    const municipio = partes.join("_");
+  if (typeof item === "string") {
+    const limpio = limpiarTexto(item);
 
-    return {
-      municipio: municipio,
-      departamento: departamento,
-      etiqueta: `${municipio} - ${departamento}`
-    };
+    if (limpio.includes("_")) {
+      const partes = limpio.split("_");
+      departamento = limpiarTexto(partes.pop());
+      municipio = limpiarTexto(partes.join("_").replace(/_/g, " "));
+    } else if (limpio.includes(" - ")) {
+      const partes = limpio.split(" - ");
+      municipio = limpiarTexto(partes[0]);
+      departamento = limpiarTexto(partes[1] || "SANTANDER");
+    } else {
+      municipio = limpio;
+      departamento = "SANTANDER";
+    }
+  } else {
+    municipio = limpiarTexto(
+      item.municipio ||
+      item.Mpio ||
+      item.nombre ||
+      item.name ||
+      ""
+    );
+
+    departamento = limpiarTexto(
+      item.departamento ||
+      item.Departamento ||
+      item.department ||
+      "SANTANDER"
+    );
+
+    if (municipio.includes("_")) {
+      const partes = municipio.split("_");
+      const posibleDepartamento = limpiarTexto(partes[partes.length - 1]);
+
+      if (!departamento || departamento === "SANTANDER") {
+        departamento = posibleDepartamento;
+      }
+
+      municipio = limpiarTexto(partes.slice(0, -1).join("_").replace(/_/g, " "));
+    }
   }
 
   return {
-    municipio: limpio,
-    departamento: "SANTANDER",
-    etiqueta: limpio
+    municipio,
+    departamento: departamento || "SANTANDER"
   };
 }
 
-async function cargarMunicipios() {
-  const select = document.getElementById("municipio");
+function obtenerRegistrosUnicos(listaOriginal) {
+  const mapa = new Map();
+
+  listaOriginal.forEach((item) => {
+    const registro = normalizarMunicipioDepartamento(item);
+
+    if (!registro.municipio || !registro.departamento) {
+      return;
+    }
+
+    const clave = `${registro.departamento}__${registro.municipio}`;
+
+    if (!mapa.has(clave)) {
+      mapa.set(clave, registro);
+    }
+  });
+
+  return Array.from(mapa.values()).sort((a, b) => {
+    const deptCompare = a.departamento.localeCompare(b.departamento, "es");
+    if (deptCompare !== 0) return deptCompare;
+    return a.municipio.localeCompare(b.municipio, "es");
+  });
+}
+
+function cargarDepartamentos() {
+  const selectDepartamento = document.getElementById("departamento");
+
+  const departamentos = Array.from(
+    new Set(municipiosDisponibles.map((item) => item.departamento))
+  ).sort((a, b) => a.localeCompare(b, "es"));
+
+  selectDepartamento.innerHTML = "";
+
+  if (departamentos.length === 0) {
+    selectDepartamento.innerHTML = '<option value="">No hay departamentos disponibles</option>';
+    return;
+  }
+
+  departamentos.forEach((departamento) => {
+    const option = document.createElement("option");
+    option.value = departamento;
+    option.textContent = departamento;
+    selectDepartamento.appendChild(option);
+  });
+
+  if (departamentos.includes("SANTANDER")) {
+    selectDepartamento.value = "SANTANDER";
+  } else {
+    selectDepartamento.value = departamentos[0];
+  }
+
+  cargarMunicipiosPorDepartamento(selectDepartamento.value);
+}
+
+function cargarMunicipiosPorDepartamento(departamentoSeleccionado) {
+  const selectMunicipio = document.getElementById("municipio");
+
+  const municipios = municipiosDisponibles
+    .filter((item) => item.departamento === departamentoSeleccionado)
+    .map((item) => item.municipio)
+    .sort((a, b) => a.localeCompare(b, "es"));
+
+  selectMunicipio.innerHTML = "";
+
+  if (municipios.length === 0) {
+    selectMunicipio.disabled = true;
+    selectMunicipio.innerHTML = '<option value="">No hay municipios disponibles</option>';
+    return;
+  }
+
+  selectMunicipio.disabled = false;
+
+  municipios.forEach((municipio) => {
+    const option = document.createElement("option");
+    option.value = municipio;
+    option.textContent = municipio;
+    selectMunicipio.appendChild(option);
+  });
+}
+
+async function cargarDatosTerritoriales() {
+  const selectDepartamento = document.getElementById("departamento");
+  const selectMunicipio = document.getElementById("municipio");
 
   try {
     const response = await fetch(`${API_BASE}/municipios`);
     const data = await response.json();
 
-    let municipios = [];
+    let listaOriginal = [];
 
     if (Array.isArray(data)) {
-      municipios = data;
+      listaOriginal = data;
     } else if (Array.isArray(data.municipios)) {
-      municipios = data.municipios;
+      listaOriginal = data.municipios;
     } else if (Array.isArray(data.data)) {
-      municipios = data.data;
+      listaOriginal = data.data;
     }
 
-    select.innerHTML = "";
+    municipiosDisponibles = obtenerRegistrosUnicos(listaOriginal);
 
-    if (municipios.length === 0) {
-      const option = document.createElement("option");
-      option.value = "";
-      option.textContent = "No se encontraron municipios";
-      select.appendChild(option);
+    if (municipiosDisponibles.length === 0) {
+      selectDepartamento.innerHTML = '<option value="">No hay departamentos disponibles</option>';
+      selectMunicipio.innerHTML = '<option value="">No hay municipios disponibles</option>';
+      selectMunicipio.disabled = true;
+      mostrarMensaje("No se encontraron municipios disponibles para consultar.", true);
       return;
     }
 
-    municipios.forEach((item) => {
-      const option = document.createElement("option");
-
-      let municipio = "";
-      let departamento = "SANTANDER";
-      let etiqueta = "";
-
-      if (typeof item === "string") {
-        const normalizado = normalizarMunicipioDepartamento(item);
-        municipio = normalizado.municipio;
-        departamento = normalizado.departamento;
-        etiqueta = normalizado.etiqueta;
-      } else {
-        municipio =
-          item.municipio ||
-          item.Mpio ||
-          item.nombre ||
-          item.name ||
-          "";
-
-        departamento =
-          item.departamento ||
-          item.Departamento ||
-          "SANTANDER";
-
-        const normalizado = normalizarMunicipioDepartamento(municipio);
-
-        municipio = normalizado.municipio || municipio;
-        departamento = normalizado.departamento || departamento;
-        etiqueta = `${municipio} - ${departamento}`;
-      }
-
-      option.value = municipio;
-      option.textContent = etiqueta;
-      option.dataset.departamento = departamento;
-
-      select.appendChild(option);
-    });
-
-    const selected = select.options[select.selectedIndex];
-
-    if (selected && selected.dataset.departamento) {
-      document.getElementById("departamento").value = selected.dataset.departamento;
-    }
+    cargarDepartamentos();
 
   } catch (error) {
-    console.error("Error cargando municipios:", error);
-    select.innerHTML = '<option value="">Error cargando municipios</option>';
-    mostrarMensaje("No fue posible cargar la lista de municipios. Revisa el estado del servicio.", true);
+    console.error("Error cargando departamentos y municipios:", error);
+    selectDepartamento.innerHTML = '<option value="">Error cargando departamentos</option>';
+    selectMunicipio.innerHTML = '<option value="">Error cargando municipios</option>';
+    selectMunicipio.disabled = true;
+    mostrarMensaje("No fue posible cargar la lista de departamentos y municipios. Revisa el estado del servicio.", true);
   }
 }
 
-document.getElementById("municipio").addEventListener("change", function () {
-  const selected = this.options[this.selectedIndex];
-
-  if (selected && selected.dataset.departamento) {
-    document.getElementById("departamento").value = selected.dataset.departamento;
-  }
+document.getElementById("departamento").addEventListener("change", function () {
+  cargarMunicipiosPorDepartamento(this.value);
 });
 
 document.getElementById("consultaForm").addEventListener("submit", async function (event) {
@@ -241,9 +309,9 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
 
   const payload = {
     numero_identidad: document.getElementById("numero_identidad").value.trim(),
+    departamento: document.getElementById("departamento").value.trim(),
     municipio: document.getElementById("municipio").value.trim(),
     area_ha: Number(document.getElementById("area_ha").value),
-    departamento: document.getElementById("departamento").value.trim(),
     year: Number(document.getElementById("year").value)
   };
 
@@ -314,4 +382,4 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
   }
 });
 
-cargarMunicipios();
+cargarDatosTerritoriales();
