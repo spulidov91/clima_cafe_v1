@@ -104,3 +104,21 @@ curl -X POST http://IP_PUBLICA_EC2:802/consulta \
 El notebook `1_procesamiento.ipynb` usa rutas locales tipo `C:/Users/...`. Por eso no debe ejecutarse en EC2 tal como está. Para la POC, EC2 usa los Excel ya generados en `Data anual/`.
 
 Para producción, se recomienda convertir `1_procesamiento.ipynb` en un script con rutas relativas o lectura desde S3.
+
+## Reproducción end-to-end del experimento
+
+El proceso experimental del proyecto se reproduce mediante los notebooks ubicados en la carpeta `Notebooks/`.
+
+El flujo debe ejecutarse en el siguiente orden:
+
+1. `Notebooks/1_procesamiento.ipynb`  
+   Carga, integración y limpieza inicial de los datos climáticos, satelitales y productivos.
+
+2. `Notebooks/2_Revision de variables.ipynb`  
+   Revisión exploratoria de variables, validación de consistencia, análisis de variables climáticas/satelitales y selección de variables relevantes para el modelo.
+
+3. `Notebooks/3_Modelado.ipynb`  
+   Entrenamiento del modelo, evaluación de métricas, validación de resultados y generación del artefacto utilizado posteriormente por la API.
+
+Este flujo permite reproducir el proceso completo desde los datos base hasta el modelo final usado por la aplicación desplegada en AWS EC2. La separación en notebooks facilita la trazabilidad del experimento, ya que cada etapa queda documentada y puede ejecutarse de manera independiente o secuencial.
+
