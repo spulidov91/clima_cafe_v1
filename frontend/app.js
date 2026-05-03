@@ -42,6 +42,45 @@ function formatNumber(value) {
   return formatterNumber.format(Number(value));
 }
 
+function normalizarMunicipioDepartamento(valor) {
+  /*
+    La API /municipios puede devolver valores como:
+    BARBOSA_SANTANDER
+
+    Para consultar /consulta necesitamos separar:
+    municipio = BARBOSA
+    departamento = SANTANDER
+  */
+
+  if (!valor || typeof valor !== "string") {
+    return {
+      municipio: "",
+      departamento: "Santander",
+      etiqueta: ""
+    };
+  }
+
+  const limpio = valor.trim();
+
+  if (limpio.includes("_")) {
+    const partes = limpio.split("_");
+    const departamento = partes.pop();
+    const municipio = partes.join("_");
+
+    return {
+      municipio: municipio,
+      departamento: departamento,
+      etiqueta: `${municipio} - ${departamento}`
+    };
+  }
+
+  return {
+    municipio: limpio,
+    departamento: "Santander",
+    etiqueta: limpio
+  };
+}
+
 async function cargarMunicipios() {
   const select = document.getElementById("municipio");
 
@@ -72,29 +111,47 @@ async function cargarMunicipios() {
     municipios.forEach((item) => {
       const option = document.createElement("option");
 
+      let municipio = "";
+      let departamento = "Santander";
+      let etiqueta = "";
+
       if (typeof item === "string") {
-        option.value = item;
-        option.textContent = item;
+        const normalizado = normalizarMunicipioDepartamento(item);
+        municipio = normalizado.municipio;
+        departamento = normalizado.departamento;
+        etiqueta = normalizado.etiqueta;
       } else {
-        const nombre =
+        municipio =
           item.municipio ||
           item.Mpio ||
           item.nombre ||
           item.name ||
-          JSON.stringify(item);
+          "";
 
-        const departamento =
+        departamento =
           item.departamento ||
           item.Departamento ||
           "Santander";
 
-        option.value = nombre;
-        option.textContent = nombre;
-        option.dataset.departamento = departamento;
+        const normalizado = normalizarMunicipioDepartamento(municipio);
+
+        municipio = normalizado.municipio || municipio;
+        departamento = normalizado.departamento || departamento;
+        etiqueta = `${municipio} - ${departamento}`;
       }
+
+      option.value = municipio;
+      option.textContent = etiqueta;
+      option.dataset.departamento = departamento;
 
       select.appendChild(option);
     });
+
+    const selected = select.options[select.selectedIndex];
+    if (selected && selected.dataset.departamento) {
+      document.getElementById("departamento").value = selected.dataset.departamento;
+    }
+
   } catch (error) {
     console.error("Error cargando municipios:", error);
     select.innerHTML = '<option value="">Error cargando municipios</option>';
@@ -103,6 +160,7 @@ async function cargarMunicipios() {
 
 document.getElementById("municipio").addEventListener("change", function () {
   const selected = this.options[this.selectedIndex];
+
   if (selected && selected.dataset.departamento) {
     document.getElementById("departamento").value = selected.dataset.departamento;
   }
@@ -121,11 +179,13 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
 
   const payload = {
     numero_identidad: document.getElementById("numero_identidad").value.trim(),
-    municipio: document.getElementById("municipio").value,
+    municipio: document.getElementById("municipio").value.trim(),
     area_ha: Number(document.getElementById("area_ha").value),
     departamento: document.getElementById("departamento").value.trim(),
     year: Number(document.getElementById("year").value)
   };
+
+  console.log("Payload enviado a /consulta:", payload);
 
   try {
     const response = await fetch(`${API_BASE}/consulta`, {
@@ -166,6 +226,7 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
 
     mensaje.classList.remove("error");
     mensaje.textContent = data.mensaje ?? "Consulta realizada correctamente.";
+
   } catch (error) {
     console.error("Error consultando API:", error);
     mensaje.classList.add("error");
