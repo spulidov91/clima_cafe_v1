@@ -1,4 +1,3 @@
-cat <<'EOF' > frontend/styles.css
 * {
   box-sizing: border-box;
 }
@@ -163,4 +162,3 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
-EOF

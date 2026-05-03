@@ -1,4 +1,3 @@
-cat <<'EOF' > frontend/app.js
 const API_BASE = window.location.origin;
 
 const formatterCOP = new Intl.NumberFormat("es-CO", {
@@ -96,7 +95,6 @@ async function cargarMunicipios() {
 
       select.appendChild(option);
     });
-
   } catch (error) {
     console.error("Error cargando municipios:", error);
     select.innerHTML = '<option value="">Error cargando municipios</option>';
@@ -168,7 +166,6 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
 
     mensaje.classList.remove("error");
     mensaje.textContent = data.mensaje ?? "Consulta realizada correctamente.";
-
   } catch (error) {
     console.error("Error consultando API:", error);
     mensaje.classList.add("error");
@@ -180,4 +177,3 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
 });
 
 cargarMunicipios();
-EOF
