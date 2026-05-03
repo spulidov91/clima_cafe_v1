@@ -83,8 +83,9 @@ curl http://localhost:802/health
 Desde fuera de EC2:
 
 ```bash
-curl http://IP_PUBLICA_EC2:802/health
+http://54.85.186.208:802/docs
 ```
+Una vez desplegada, la documentación interactiva queda disponible en:http://54.85.186.208:802
 
 Consulta:
 
