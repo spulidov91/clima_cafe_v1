@@ -122,3 +122,17 @@ El flujo debe ejecutarse en el siguiente orden:
 
 Este flujo permite reproducir el proceso completo desde los datos base hasta el modelo final usado por la aplicación desplegada en AWS EC2. La separación en notebooks facilita la trazabilidad del experimento, ya que cada etapa queda documentada y puede ejecutarse de manera independiente o secuencial.
 
+## Datos utilizados
+
+Los datos del proyecto se encuentran versionados en la carpeta `Data anual/`.
+
+Archivos disponibles:
+
+- `data_anual_ago_nov.xlsx`
+- `data_anual_sep_dec.xlsx`
+- `data_anual_total.xlsx`
+
+El archivo principal utilizado por la API y por el modelo es:
+
+```text
+Data anual/data_anual_total.xlsx
