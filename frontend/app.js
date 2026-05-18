@@ -768,19 +768,28 @@ function poblarResultados(data) {
   "Porcentaje_cobertura"
 ]);
 
-let porcentajeCoberturaCalculado = null;
+let coberturaSobreValorCosecha = 0;
 
-if (porcentajeCoberturaApi !== null) {
-  porcentajeCoberturaCalculado = porcentajeCoberturaApi;
-} else if (valorCosecha !== null && Number(valorCosecha) > 0 && valorCobertura !== null) {
-  porcentajeCoberturaCalculado = Math.max(0, Number(valorCobertura)) / Number(valorCosecha);
+if (porcentajeCoberturaApi !== null && !Number.isNaN(Number(porcentajeCoberturaApi))) {
+  const porcentajeApi = Number(porcentajeCoberturaApi);
+
+  // Si la API devuelve 0.15, se interpreta como 15%.
+  // Si alguna vez devuelve 15, se interpreta como 15%.
+  coberturaSobreValorCosecha = porcentajeApi > 1 ? porcentajeApi / 100 : porcentajeApi;
+} else if (
+  valorCosecha !== null &&
+  Number(valorCosecha) > 0 &&
+  valorCobertura !== null
+) {
+  coberturaSobreValorCosecha = Math.max(0, Number(valorCobertura)) / Number(valorCosecha);
 }
 
 setText(
   "porcentajeCobertura",
-  porcentajeCoberturaCalculado !== null
-    ? formatPercent(porcentajeCoberturaCalculado)
-    : "0%"
+  `${(coberturaSobreValorCosecha * 100).toLocaleString("es-CO", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}%`
 );
 
   
