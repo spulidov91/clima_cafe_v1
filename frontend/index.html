@@ -156,6 +156,11 @@
 
         <div class="map-layout">
           <div id="mapaMunicipio" class="municipality-map" aria-label="Mapa del municipio seleccionado"></div>
+          <aside class="map-info">
+            <strong id="mapaTitulo">Selecciona un municipio</strong>
+            <p id="mapaEstado">Cuando selecciones departamento y municipio, se cargará el polígono desde la carpeta <code>geojson</code>.</p>
+            <small id="geojsonArchivo">Archivo GeoJSON: pendiente</small>
+          </aside>
         </div>
       </section>
 
@@ -278,9 +283,9 @@
           </div>
         </div>
 
-        <div id="mensajeResultado" class="message">
+        <p id="mensajeResultado" class="message">
           Ingresa los datos de tu cultivo y presiona “Quiero estimar mi cosecha” para conocer una proyección de producción, intervalos y cobertura.
-        </div>
+        </p>
       </section>
     </section>
   </main>
