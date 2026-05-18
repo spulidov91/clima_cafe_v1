@@ -63,6 +63,23 @@ function formatNumber(value) {
   return formatterNumber.format(number);
 }
 
+function formatDecimal(value, decimals = 2) {
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
+  return number.toLocaleString("es-CO", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+}
+
+function formatInteger(value) {
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
+  return number.toLocaleString("es-CO", {
+    maximumFractionDigits: 0
+  });
+}
+
 function formatPercent(value) {
   const number = getNumber(value);
   if (number === null) return "Pendiente";
@@ -93,7 +110,24 @@ function mostrarMensaje(texto, esError = false) {
   const mensaje = document.getElementById("mensajeResultado");
   if (!mensaje) return;
   mensaje.classList.toggle("error", esError);
+  mensaje.innerHTML = "";
   mensaje.textContent = texto;
+}
+
+function mostrarMensajeHTML(html, esError = false) {
+  const mensaje = document.getElementById("mensajeResultado");
+  if (!mensaje) return;
+  mensaje.classList.toggle("error", esError);
+  mensaje.innerHTML = html;
+}
+
+function escapeHTML(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function limpiarErrores() {
@@ -687,6 +721,175 @@ async function actualizarMapaMunicipio() {
   }
 }
 
+function pickBoolean(data, keys) {
+  const value = pickValue(data, keys);
+  if (value === null) return null;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "si", "sí", "yes", "y"].includes(normalized)) return true;
+  if (["false", "0", "no", "n"].includes(normalized)) return false;
+
+  return null;
+}
+
+function obtenerValoresResumen(data) {
+  const rendimiento = pickNumber(data, [
+    "rendimiento_predicho",
+    "Rendimiento_predicho",
+    "rendimiento_estimado_ton_ha",
+    "rendimiento_pred",
+    "Rendimiento"
+  ]);
+
+  const rendimientoInf = pickNumber(data, ["rendimiento_inf", "Rendimiento_inf"]);
+  const rendimientoSup = pickNumber(data, ["rendimiento_sup", "Rendimiento_sup"]);
+
+  const cosechaKg = pickNumber(data, [
+    "Cosecha_estimada",
+    "cosecha_estimada_kg",
+    "produccion_estimada_kg"
+  ]);
+  const cosechaTon = pickNumber(data, ["cosecha_estimada_ton", "produccion_estimada_ton"]);
+  const cosechaFinalKg = cosechaKg !== null ? cosechaKg : (cosechaTon !== null ? cosechaTon * 1000 : null);
+
+  const cosechaInfKg = pickNumber(data, [
+    "Cosecha_estimada_inf",
+    "cosecha_estimada_inf_kg",
+    "produccion_estimada_inf_kg"
+  ]);
+  const cosechaSupKg = pickNumber(data, [
+    "Cosecha_estimada_sup",
+    "cosecha_estimada_sup_kg",
+    "produccion_estimada_sup_kg"
+  ]);
+
+  const valorCosecha = pickNumber(data, [
+    "valor_estimado_cosecha_cop",
+    "Costo_cosecha",
+    "costo_cosecha",
+    "valor_cosecha_cop"
+  ]);
+  const valorCosechaInf = pickNumber(data, [
+    "costo_cosecha_lim_inf",
+    "Costo_cosecha_lim_inf",
+    "valor_estimado_cosecha_inf_cop",
+    "valor_cosecha_inf_cop"
+  ]);
+  const valorCosechaSup = pickNumber(data, [
+    "costo_cosecha_lim_sup",
+    "Costo_cosecha_lim_sup",
+    "valor_estimado_cosecha_sup_cop",
+    "valor_cosecha_sup_cop"
+  ]);
+
+  const umbral = pickNumber(data, [
+    "umbral_aseguramiento",
+    "pred_mpio_thresh",
+    "std_thresh_1",
+    "Std_thresh_1"
+  ]);
+
+  const valorCobertura = pickNumber(data, [
+    "valor_cobertura_cop",
+    "Valor_asegurado",
+    "valor_asegurado",
+    "valor_estimado_cobertura_cop"
+  ]);
+
+  const valorMaxIndemnizar = pickNumber(data, [
+    "Valor_max_indemnizar",
+    "valor_max_indemnizar",
+    "valor_maximo_indemnizar_cop"
+  ]);
+
+  let elegible = pickBoolean(data, [
+    "elegible_cobertura",
+    "elegible",
+    "es_elegible"
+  ]);
+
+  if (elegible === null && rendimiento !== null && umbral !== null) {
+    elegible = rendimiento < umbral;
+  }
+
+  return {
+    municipio: pickValue(data, ["municipio", "Municipio"]) || document.getElementById("municipio")?.value || "Pendiente",
+    departamento: pickValue(data, ["departamento", "Departamento"]) || document.getElementById("departamento")?.value || "",
+    year: pickValue(data, ["year_usado", "Year", "year"]) || document.getElementById("year")?.value || "Pendiente",
+    areaHa: pickNumber(data, ["area_ha", "Area_ha"]) || getNumber(document.getElementById("area_ha")?.value),
+    rendimiento,
+    rendimientoInf,
+    rendimientoSup,
+    cosechaKg: cosechaFinalKg,
+    cosechaInfKg,
+    cosechaSupKg,
+    valorCosecha,
+    valorCosechaInf,
+    valorCosechaSup,
+    umbral,
+    valorCobertura,
+    valorMaxIndemnizar,
+    elegible
+  };
+}
+
+function intervaloTexto(inferior, superior, formatter, unidad = "") {
+  const low = getNumber(inferior);
+  const high = getNumber(superior);
+
+  if (low === null || high === null) {
+    return "No disponible";
+  }
+
+  const suffix = unidad ? ` ${unidad}` : "";
+  return `${formatter(low)} a ${formatter(high)}${suffix}`;
+}
+
+function buildResumenHTML(data) {
+  const valores = obtenerValoresResumen(data);
+
+  const municipio = String(valores.municipio || "Pendiente").toUpperCase();
+  const departamento = String(valores.departamento || "").toUpperCase();
+  const ubicacion = departamento ? `${municipio} - ${departamento}` : municipio;
+  const year = valores.year || "Pendiente";
+  const areaHaTexto = valores.areaHa !== null ? formatDecimal(valores.areaHa, 2) : "Pendiente";
+
+  const rendimientoTexto = valores.rendimiento !== null
+    ? formatDecimal(valores.rendimiento, 4)
+    : "Pendiente";
+  const rendimientoIntervalo = valores.rendimientoInf !== null && valores.rendimientoSup !== null
+    ? `[${formatDecimal(valores.rendimientoInf, 4)}, ${formatDecimal(valores.rendimientoSup, 4)}]`
+    : "[pendiente]";
+
+  const cosechaTexto = valores.cosechaKg !== null
+    ? formatInteger(valores.cosechaKg)
+    : "Pendiente";
+  const cosechaIntervalo = valores.cosechaInfKg !== null && valores.cosechaSupKg !== null
+    ? `[${formatInteger(valores.cosechaInfKg)}, ${formatInteger(valores.cosechaSupKg)}]`
+    : "[pendiente]";
+
+  const valorCosechaTexto = valores.valorCosecha !== null
+    ? `${formatInteger(valores.valorCosecha)} COP`
+    : "Pendiente";
+  const valorCosechaIntervalo = valores.valorCosechaInf !== null && valores.valorCosechaSup !== null
+    ? `[${formatInteger(valores.valorCosechaInf)}, ${formatInteger(valores.valorCosechaSup)}]`
+    : "[pendiente]";
+
+  const umbralTexto = valores.umbral !== null
+    ? formatDecimal(valores.umbral, 4)
+    : "Pendiente";
+
+  const elegibilidadTexto = valores.elegible
+    ? "es elegible para recibir apoyo"
+    : "no es elegible para recibir apoyo";
+
+  const texto = `Según la información climática y satelital disponible para ${ubicacion}, usando el año ${year}, el rendimiento predicho es ${rendimientoTexto} ton/ha con intervalo ${rendimientoIntervalo} ton/ha. La cosecha estimada para ${areaHaTexto} hectáreas es ${cosechaTexto} kg con intervalo ${cosechaIntervalo} kg. El valor estimado de la cosecha es ${valorCosechaTexto} con intervalo ${valorCosechaIntervalo} COP. Con el umbral de aseguramiento ${umbralTexto} ton/ha, el cultivo ${elegibilidadTexto}.`;
+
+  return escapeHTML(texto);
+}
+
 function poblarResultados(data) {
   const precioLocalLb =
     pickNumber(data, ["precio_local_cop_lb", "Precio_local_cop_lb"]) ??
@@ -762,37 +965,26 @@ function poblarResultados(data) {
   setText("intervaloCosecha", formatInterval(cosechaInfKg, cosechaSupKg, (value) => `${formatNumber(value)} kg`));
   setText("valorCosecha", valorCosecha !== null ? formatCOP(valorCosecha) : "Pendiente");
   setText("intervaloValorCosecha", formatInterval(valorCosechaInf, valorCosechaSup, formatCOP));
-  
- const porcentajeCoberturaApi = pickValue(data, [
-  "porcentaje_cobertura",
-  "Porcentaje_cobertura"
-]);
 
-let coberturaSobreValorCosecha = 0;
+  const porcentajeCoberturaApi = pickValue(data, [
+    "porcentaje_cobertura",
+    "Porcentaje_cobertura"
+  ]);
 
-if (porcentajeCoberturaApi !== null && !Number.isNaN(Number(porcentajeCoberturaApi))) {
-  const porcentajeApi = Number(porcentajeCoberturaApi);
+  let coberturaSobreValorCosecha = 0;
 
-  // Si la API devuelve 0.15, se interpreta como 15%.
-  // Si alguna vez devuelve 15, se interpreta como 15%.
-  coberturaSobreValorCosecha = porcentajeApi > 1 ? porcentajeApi / 100 : porcentajeApi;
-} else if (
-  valorCosecha !== null &&
-  Number(valorCosecha) > 0 &&
-  valorCobertura !== null
-) {
-  coberturaSobreValorCosecha = Math.max(0, Number(valorCobertura)) / Number(valorCosecha);
-}
+  if (porcentajeCoberturaApi !== null && !Number.isNaN(Number(porcentajeCoberturaApi))) {
+    const porcentajeApi = Number(porcentajeCoberturaApi);
+    coberturaSobreValorCosecha = porcentajeApi > 1 ? porcentajeApi / 100 : porcentajeApi;
+  } else if (
+    valorCosecha !== null &&
+    Number(valorCosecha) > 0 &&
+    valorCobertura !== null
+  ) {
+    coberturaSobreValorCosecha = Math.max(0, Number(valorCobertura)) / Number(valorCosecha);
+  }
 
-setText(
-  "porcentajeCobertura",
-  `${(coberturaSobreValorCosecha * 100).toLocaleString("es-CO", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}%`
-);
-
-  
+  setText("porcentajeCobertura", `${(coberturaSobreValorCosecha * 100).toFixed(2)}%`);
   setText("valorCobertura", valorCobertura !== null ? formatCOP(valorCobertura) : "Pendiente");
   setText("valorMaxIndemnizar", valorMaxIndemnizar !== null ? formatCOP(valorMaxIndemnizar) : "Pendiente");
 }
@@ -852,10 +1044,7 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
     poblarResultados(data);
     actualizarMapaMunicipio();
 
-    mostrarMensaje(
-      data.mensaje ??
-      "Consulta realizada correctamente. Ya puedes ver la producción estimada, sus intervalos de confianza, el valor de cobertura y el mapa del municipio."
-    );
+    mostrarMensajeHTML(buildResumenHTML(data));
 
   } catch (error) {
     console.error("Error consultando el servicio:", error);
