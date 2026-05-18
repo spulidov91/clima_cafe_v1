@@ -762,7 +762,28 @@ function poblarResultados(data) {
   setText("intervaloCosecha", formatInterval(cosechaInfKg, cosechaSupKg, (value) => `${formatNumber(value)} kg`));
   setText("valorCosecha", valorCosecha !== null ? formatCOP(valorCosecha) : "Pendiente");
   setText("intervaloValorCosecha", formatInterval(valorCosechaInf, valorCosechaSup, formatCOP));
-  setText("porcentajeCobertura", pickValue(data, ["porcentaje_cobertura", "Porcentaje_cobertura"]) !== null ? formatPercent(pickValue(data, ["porcentaje_cobertura", "Porcentaje_cobertura"])) : "Pendiente");
+  
+ const porcentajeCoberturaApi = pickValue(data, [
+  "porcentaje_cobertura",
+  "Porcentaje_cobertura"
+]);
+
+let porcentajeCoberturaCalculado = null;
+
+if (porcentajeCoberturaApi !== null) {
+  porcentajeCoberturaCalculado = porcentajeCoberturaApi;
+} else if (valorCosecha !== null && Number(valorCosecha) > 0 && valorCobertura !== null) {
+  porcentajeCoberturaCalculado = Math.max(0, Number(valorCobertura)) / Number(valorCosecha);
+}
+
+setText(
+  "porcentajeCobertura",
+  porcentajeCoberturaCalculado !== null
+    ? formatPercent(porcentajeCoberturaCalculado)
+    : "0%"
+);
+
+  
   setText("valorCobertura", valorCobertura !== null ? formatCOP(valorCobertura) : "Pendiente");
   setText("valorMaxIndemnizar", valorMaxIndemnizar !== null ? formatCOP(valorMaxIndemnizar) : "Pendiente");
 }
