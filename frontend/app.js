@@ -63,6 +63,23 @@ function formatNumber(value) {
   return formatterNumber.format(number);
 }
 
+function formatDecimal(value, decimals = 2) {
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
+  return number.toLocaleString("es-CO", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+}
+
+function formatInteger(value) {
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
+  return number.toLocaleString("es-CO", {
+    maximumFractionDigits: 0
+  });
+}
+
 function formatPercent(value) {
   const number = getNumber(value);
   if (number === null) return "Pendiente";
@@ -93,7 +110,24 @@ function mostrarMensaje(texto, esError = false) {
   const mensaje = document.getElementById("mensajeResultado");
   if (!mensaje) return;
   mensaje.classList.toggle("error", esError);
+  mensaje.innerHTML = "";
   mensaje.textContent = texto;
+}
+
+function mostrarMensajeHTML(html, esError = false) {
+  const mensaje = document.getElementById("mensajeResultado");
+  if (!mensaje) return;
+  mensaje.classList.toggle("error", esError);
+  mensaje.innerHTML = html;
+}
+
+function escapeHTML(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function limpiarErrores() {
@@ -687,6 +721,200 @@ async function actualizarMapaMunicipio() {
   }
 }
 
+function pickBoolean(data, keys) {
+  const value = pickValue(data, keys);
+  if (value === null) return null;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "si", "sí", "yes", "y"].includes(normalized)) return true;
+  if (["false", "0", "no", "n"].includes(normalized)) return false;
+
+  return null;
+}
+
+function obtenerValoresResumen(data) {
+  const rendimiento = pickNumber(data, [
+    "rendimiento_predicho",
+    "Rendimiento_predicho",
+    "rendimiento_estimado_ton_ha",
+    "rendimiento_pred",
+    "Rendimiento"
+  ]);
+
+  const rendimientoInf = pickNumber(data, ["rendimiento_inf", "Rendimiento_inf"]);
+  const rendimientoSup = pickNumber(data, ["rendimiento_sup", "Rendimiento_sup"]);
+
+  const cosechaKg = pickNumber(data, [
+    "Cosecha_estimada",
+    "cosecha_estimada_kg",
+    "produccion_estimada_kg"
+  ]);
+  const cosechaTon = pickNumber(data, ["cosecha_estimada_ton", "produccion_estimada_ton"]);
+  const cosechaFinalKg = cosechaKg !== null ? cosechaKg : (cosechaTon !== null ? cosechaTon * 1000 : null);
+
+  const cosechaInfKg = pickNumber(data, [
+    "Cosecha_estimada_inf",
+    "cosecha_estimada_inf_kg",
+    "produccion_estimada_inf_kg"
+  ]);
+  const cosechaSupKg = pickNumber(data, [
+    "Cosecha_estimada_sup",
+    "cosecha_estimada_sup_kg",
+    "produccion_estimada_sup_kg"
+  ]);
+
+  const valorCosecha = pickNumber(data, [
+    "valor_estimado_cosecha_cop",
+    "Costo_cosecha",
+    "costo_cosecha",
+    "valor_cosecha_cop"
+  ]);
+  const valorCosechaInf = pickNumber(data, [
+    "costo_cosecha_lim_inf",
+    "Costo_cosecha_lim_inf",
+    "valor_estimado_cosecha_inf_cop",
+    "valor_cosecha_inf_cop"
+  ]);
+  const valorCosechaSup = pickNumber(data, [
+    "costo_cosecha_lim_sup",
+    "Costo_cosecha_lim_sup",
+    "valor_estimado_cosecha_sup_cop",
+    "valor_cosecha_sup_cop"
+  ]);
+
+  const umbral = pickNumber(data, [
+    "umbral_aseguramiento",
+    "pred_mpio_thresh",
+    "std_thresh_1",
+    "Std_thresh_1"
+  ]);
+
+  const valorCobertura = pickNumber(data, [
+    "valor_cobertura_cop",
+    "Valor_asegurado",
+    "valor_asegurado",
+    "valor_estimado_cobertura_cop"
+  ]);
+
+  const valorMaxIndemnizar = pickNumber(data, [
+    "Valor_max_indemnizar",
+    "valor_max_indemnizar",
+    "valor_maximo_indemnizar_cop"
+  ]);
+
+  let elegible = pickBoolean(data, [
+    "elegible_cobertura",
+    "elegible",
+    "es_elegible"
+  ]);
+
+  if (elegible === null && rendimiento !== null && umbral !== null) {
+    elegible = rendimiento < umbral;
+  }
+
+  return {
+    municipio: pickValue(data, ["municipio", "Municipio"]) || document.getElementById("municipio")?.value || "Pendiente",
+    departamento: pickValue(data, ["departamento", "Departamento"]) || document.getElementById("departamento")?.value || "",
+    year: pickValue(data, ["year_usado", "Year", "year"]) || document.getElementById("year")?.value || "Pendiente",
+    areaHa: pickNumber(data, ["area_ha", "Area_ha"]) || getNumber(document.getElementById("area_ha")?.value),
+    rendimiento,
+    rendimientoInf,
+    rendimientoSup,
+    cosechaKg: cosechaFinalKg,
+    cosechaInfKg,
+    cosechaSupKg,
+    valorCosecha,
+    valorCosechaInf,
+    valorCosechaSup,
+    umbral,
+    valorCobertura,
+    valorMaxIndemnizar,
+    elegible
+  };
+}
+
+function intervaloTexto(inferior, superior, formatter, unidad = "") {
+  const low = getNumber(inferior);
+  const high = getNumber(superior);
+
+  if (low === null || high === null) {
+    return "No disponible";
+  }
+
+  const suffix = unidad ? ` ${unidad}` : "";
+  return `${formatter(low)} a ${formatter(high)}${suffix}`;
+}
+
+function buildResumenHTML(data) {
+  const valores = obtenerValoresResumen(data);
+  const municipio = escapeHTML(String(valores.municipio || "").toUpperCase());
+  const departamento = escapeHTML(String(valores.departamento || "").toUpperCase());
+  const ubicacion = departamento ? `${municipio}, ${departamento}` : municipio;
+
+  const elegibilidadClase = valores.elegible ? "summary-status-positive" : "summary-status-neutral";
+  const elegibilidadTexto = valores.elegible
+    ? "Elegible para apoyo"
+    : "No elegible para apoyo";
+
+  const interpretacion = valores.elegible
+    ? "El rendimiento predicho está por debajo del umbral de aseguramiento; por tanto, el cultivo sería elegible para apoyo en este escenario."
+    : "El rendimiento predicho está por encima o igual al umbral de aseguramiento; por tanto, el cultivo no sería elegible para apoyo en este escenario.";
+
+  return `
+    <div class="summary-card">
+      <div class="summary-header">
+        <div>
+          <h3>Resumen del resultado</h3>
+          <p>${ubicacion} · Año ${escapeHTML(valores.year)}${valores.areaHa !== null ? ` · ${formatDecimal(valores.areaHa, 2)} ha` : ""}</p>
+        </div>
+        <span class="summary-status ${elegibilidadClase}">${elegibilidadTexto}</span>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-metric">
+          <span>Rendimiento predicho</span>
+          <strong>${formatDecimal(valores.rendimiento, 4)} ton/ha</strong>
+          <small>Intervalo: ${intervaloTexto(valores.rendimientoInf, valores.rendimientoSup, (value) => formatDecimal(value, 4), "ton/ha")}</small>
+        </div>
+
+        <div class="summary-metric">
+          <span>Cosecha estimada</span>
+          <strong>${formatInteger(valores.cosechaKg)} kg</strong>
+          <small>Intervalo: ${intervaloTexto(valores.cosechaInfKg, valores.cosechaSupKg, formatInteger, "kg")}</small>
+        </div>
+
+        <div class="summary-metric">
+          <span>Valor estimado de la cosecha</span>
+          <strong>${formatCOP(valores.valorCosecha)}</strong>
+          <small>Intervalo: ${intervaloTexto(valores.valorCosechaInf, valores.valorCosechaSup, formatCOP)}</small>
+        </div>
+
+        <div class="summary-metric">
+          <span>Umbral de aseguramiento</span>
+          <strong>${formatDecimal(valores.umbral, 4)} ton/ha</strong>
+          <small>Referencia para activar apoyo</small>
+        </div>
+
+        <div class="summary-metric">
+          <span>Valor estimado de cobertura</span>
+          <strong>${formatCOP(valores.valorCobertura)}</strong>
+          <small>Diferencia entre umbral y valor estimado, si aplica</small>
+        </div>
+
+        <div class="summary-metric">
+          <span>Valor máximo a indemnizar</span>
+          <strong>${formatCOP(valores.valorMaxIndemnizar)}</strong>
+          <small>Límite estimado usando el mínimo histórico</small>
+        </div>
+      </div>
+
+      <p class="summary-interpretation">${interpretacion}</p>
+    </div>
+  `;
+}
+
 function poblarResultados(data) {
   const precioLocalLb =
     pickNumber(data, ["precio_local_cop_lb", "Precio_local_cop_lb"]) ??
@@ -822,10 +1050,7 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
     poblarResultados(data);
     actualizarMapaMunicipio();
 
-    mostrarMensaje(
-      data.mensaje ??
-      "Consulta realizada correctamente. Ya puedes ver la producción estimada, sus intervalos de confianza, el valor de cobertura y el mapa del municipio."
-    );
+    mostrarMensajeHTML(buildResumenHTML(data));
 
   } catch (error) {
     console.error("Error consultando el servicio:", error);
