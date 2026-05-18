@@ -1,8 +1,7 @@
 const API_BASE = window.location.origin;
 
 let municipiosDisponibles = [];
-let mapaMunicipio = null;
-let capaMunicipio = null;
+let ultimoGeojsonCargado = null;
 
 const formatterCOP = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -376,23 +375,20 @@ async function cargarDatosTerritoriales() {
 function inicializarMapa() {
   const mapElement = document.getElementById("mapaMunicipio");
 
-  if (!mapElement || !window.L) {
+  if (!mapElement) {
     setMapInfo(
       "Mapa no disponible",
-      "No se pudo cargar Leaflet. Revisa la conexión a internet o instala Leaflet localmente.",
+      "No se encontró el contenedor del mapa en el HTML.",
       "Archivo GeoJSON: pendiente"
     );
     return;
   }
 
-  mapaMunicipio = L.map("mapaMunicipio", {
-    scrollWheelZoom: false
-  }).setView([5.9, -73.2], 8);
-
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors"
-  }).addTo(mapaMunicipio);
+  mapElement.innerHTML = `
+    <div class="map-placeholder">
+      Selecciona departamento y municipio para cargar el polígono territorial desde la carpeta geojson.
+    </div>
+  `;
 }
 
 function setMapInfo(titulo, estado, archivo) {
@@ -403,19 +399,49 @@ function setMapInfo(titulo, estado, archivo) {
 
 function construirNombresGeojson(departamento, municipio) {
   const depTitle = titleCaseArchivo(departamento, false);
-  const munTitle = titleCaseArchivo(municipio, false);
-  const munTitleConConectores = titleCaseArchivo(municipio, true);
   const depRaw = normalizarParaArchivo(departamento);
-  const munRaw = normalizarParaArchivo(municipio);
 
-  const nombres = [
-    `${depTitle}_${munTitleConConectores}_polygons.geojson`,
-    `${depTitle}_${munTitle}_polygons.geojson`,
-    `${depRaw}_${munRaw}_polygons.geojson`,
-    `${depRaw.toLowerCase()}_${munRaw.toLowerCase()}_polygons.geojson`
-  ];
+  const municipiosBase = [municipio];
+  const municipioSinArticulo = limpiarTexto(municipio).replace(/^EL\s+/, "");
+
+  if (municipioSinArticulo && municipioSinArticulo !== limpiarTexto(municipio)) {
+    municipiosBase.push(municipioSinArticulo);
+  }
+
+  const nombres = [];
+
+  municipiosBase.forEach((mun) => {
+    const munTitle = titleCaseArchivo(mun, false);
+    const munTitleConConectores = titleCaseArchivo(mun, true);
+    const munRaw = normalizarParaArchivo(mun);
+    const munEspacios = titleCaseConEspacios(mun, true);
+
+    nombres.push(`${depTitle}_${munTitleConConectores}_polygons.geojson`);
+    nombres.push(`${depTitle}_${munTitle}_polygons.geojson`);
+    nombres.push(`${depTitle}_${munEspacios}_polygons.geojson`);
+    nombres.push(`${depRaw}_${munRaw}_polygons.geojson`);
+    nombres.push(`${depRaw.toLowerCase()}_${munRaw.toLowerCase()}_polygons.geojson`);
+  });
 
   return Array.from(new Set(nombres));
+}
+
+function titleCaseConEspacios(valor, lowerConnectors = false) {
+  const conectores = new Set(["de", "del", "la", "las", "los", "y"]);
+  return removerAcentos(valor)
+    .trim()
+    .replace(/[^A-Za-z0-9\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((token, index) => {
+      const lower = token.toLowerCase();
+      if (lowerConnectors && index > 0 && conectores.has(lower)) {
+        return lower;
+      }
+      return titleCaseToken(token);
+    })
+    .join(" ");
 }
 
 function construirRutasGeojson(departamento, municipio) {
@@ -431,7 +457,7 @@ function construirRutasGeojson(departamento, municipio) {
 
   nombres.forEach((nombre) => {
     bases.forEach((base) => {
-      rutas.push(`${base}/${nombre}`);
+      rutas.push(`${base}/${encodeURIComponent(nombre)}`);
     });
   });
 
@@ -455,10 +481,158 @@ async function cargarPrimerGeojsonDisponible(rutas) {
 }
 
 function limpiarCapaMunicipio() {
-  if (capaMunicipio && mapaMunicipio) {
-    mapaMunicipio.removeLayer(capaMunicipio);
+  const mapElement = document.getElementById("mapaMunicipio");
+  ultimoGeojsonCargado = null;
+
+  if (mapElement) {
+    mapElement.innerHTML = "";
   }
-  capaMunicipio = null;
+}
+
+function obtenerGeometrias(geojson) {
+  if (!geojson) return [];
+
+  if (geojson.type === "FeatureCollection") {
+    return geojson.features.flatMap((feature) => obtenerGeometrias(feature));
+  }
+
+  if (geojson.type === "Feature") {
+    return obtenerGeometrias(geojson.geometry);
+  }
+
+  if (geojson.type === "GeometryCollection") {
+    return geojson.geometries.flatMap((geometry) => obtenerGeometrias(geometry));
+  }
+
+  if (geojson.type === "Polygon") {
+    return [geojson.coordinates];
+  }
+
+  if (geojson.type === "MultiPolygon") {
+    return geojson.coordinates;
+  }
+
+  return [];
+}
+
+function extraerPuntos(poligonos) {
+  const puntos = [];
+
+  poligonos.forEach((polygon) => {
+    polygon.forEach((ring) => {
+      ring.forEach((coord) => {
+        if (Array.isArray(coord) && coord.length >= 2) {
+          const lon = Number(coord[0]);
+          const lat = Number(coord[1]);
+          if (Number.isFinite(lon) && Number.isFinite(lat)) {
+            puntos.push([lon, lat]);
+          }
+        }
+      });
+    });
+  });
+
+  return puntos;
+}
+
+function calcularBounds(puntos) {
+  const lons = puntos.map((p) => p[0]);
+  const lats = puntos.map((p) => p[1]);
+
+  return {
+    minLon: Math.min(...lons),
+    maxLon: Math.max(...lons),
+    minLat: Math.min(...lats),
+    maxLat: Math.max(...lats)
+  };
+}
+
+function crearProyector(bounds, width, height, padding) {
+  const lonRange = Math.max(bounds.maxLon - bounds.minLon, 0.000001);
+  const latRange = Math.max(bounds.maxLat - bounds.minLat, 0.000001);
+  const scale = Math.min((width - padding * 2) / lonRange, (height - padding * 2) / latRange);
+  const xOffset = (width - lonRange * scale) / 2;
+  const yOffset = (height - latRange * scale) / 2;
+
+  return ([lon, lat]) => {
+    const x = xOffset + (lon - bounds.minLon) * scale;
+    const y = yOffset + (bounds.maxLat - lat) * scale;
+    return [x, y];
+  };
+}
+
+function ringToPath(ring, project) {
+  const puntos = ring
+    .map((coord) => {
+      if (!Array.isArray(coord) || coord.length < 2) return null;
+      const lon = Number(coord[0]);
+      const lat = Number(coord[1]);
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+      return project([lon, lat]);
+    })
+    .filter(Boolean);
+
+  if (puntos.length === 0) return "";
+
+  return puntos
+    .map(([x, y], index) => `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`)
+    .join(" ") + " Z";
+}
+
+function polygonToPath(polygon, project) {
+  return polygon
+    .map((ring) => ringToPath(ring, project))
+    .filter(Boolean)
+    .join(" ");
+}
+
+function dibujarGeojson(geojson, municipio, departamento) {
+  const mapElement = document.getElementById("mapaMunicipio");
+  if (!mapElement) return false;
+
+  const poligonos = obtenerGeometrias(geojson);
+  const puntos = extraerPuntos(poligonos);
+
+  if (puntos.length === 0) {
+    mapElement.innerHTML = `
+      <div class="map-error">
+        El archivo GeoJSON se encontró, pero no contiene polígonos válidos para dibujar.
+      </div>
+    `;
+    return false;
+  }
+
+  const width = 1000;
+  const height = 620;
+  const padding = 56;
+  const bounds = calcularBounds(puntos);
+  const project = crearProyector(bounds, width, height, padding);
+
+  const paths = poligonos
+    .map((polygon) => polygonToPath(polygon, project))
+    .filter(Boolean);
+
+  const gridLines = [0.25, 0.5, 0.75]
+    .map((ratio) => {
+      const x = width * ratio;
+      const y = height * ratio;
+      return `<line class="map-grid" x1="${x}" y1="40" x2="${x}" y2="${height - 40}" />\n<line class="map-grid" x1="40" y1="${y}" x2="${width - 40}" y2="${y}" />`;
+    })
+    .join("\n");
+
+  mapElement.innerHTML = `
+    <svg class="geojson-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Polígono de ${municipio}, ${departamento}">
+      <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
+      ${gridLines}
+      <text class="map-label" x="56" y="54">${municipio}</text>
+      <text class="map-subtitle" x="56" y="84">${departamento} · Polígono municipal GeoJSON</text>
+      ${paths.map((path) => `<path class="municipio-borde" d="${path}"></path>`).join("\n")}
+      ${paths.map((path) => `<path class="municipio-poligono" d="${path}"></path>`).join("\n")}
+      <text class="map-subtitle" x="${width - 120}" y="${height - 36}">N ↑</text>
+    </svg>
+  `;
+
+  return true;
 }
 
 async function actualizarMapaMunicipio() {
@@ -468,6 +642,7 @@ async function actualizarMapaMunicipio() {
   limpiarCapaMunicipio();
 
   if (!departamento || !municipio) {
+    inicializarMapa();
     setMapInfo("Selecciona un municipio", "Cuando selecciones departamento y municipio, se cargará el polígono desde la carpeta geojson.", "Archivo GeoJSON: pendiente");
     return;
   }
@@ -478,47 +653,38 @@ async function actualizarMapaMunicipio() {
     "Archivo GeoJSON: buscando archivo compatible"
   );
 
-  if (!mapaMunicipio || !window.L) {
-    setMapInfo(
-      `${municipio}, ${departamento}`,
-      "El municipio fue seleccionado, pero el mapa no está disponible porque Leaflet no cargó.",
-      "Archivo GeoJSON: pendiente"
-    );
-    return;
-  }
-
   const rutas = construirRutasGeojson(departamento, municipio);
   const resultado = await cargarPrimerGeojsonDisponible(rutas);
 
   if (!resultado) {
+    const esperado = construirNombresGeojson(departamento, municipio)[0];
+    const mapElement = document.getElementById("mapaMunicipio");
+    if (mapElement) {
+      mapElement.innerHTML = `
+        <div class="map-error">
+          No se encontró el GeoJSON del municipio.<br>
+          Prueba abrir directamente: <code>/geojson/${esperado}</code>
+        </div>
+      `;
+    }
     setMapInfo(
       `${municipio}, ${departamento}`,
-      "No se encontró el archivo GeoJSON del municipio. Verifica que la carpeta geojson esté disponible públicamente y que el nombre del archivo coincida.",
-      `Archivo GeoJSON esperado: ${construirNombresGeojson(departamento, municipio)[0]}`
+      "No se encontró el archivo GeoJSON del municipio. Verifica que la API sirva /geojson y que Docker copie la carpeta geojson.",
+      `Archivo GeoJSON esperado: ${esperado}`
     );
     return;
   }
 
-  capaMunicipio = L.geoJSON(resultado.geojson, {
-    style: {
-      color: "#14532d",
-      weight: 2,
-      opacity: 0.9,
-      fillColor: "#2fbf7d",
-      fillOpacity: 0.45
-    }
-  }).addTo(mapaMunicipio);
+  ultimoGeojsonCargado = resultado.geojson;
+  const dibujado = dibujarGeojson(resultado.geojson, municipio, departamento);
 
-  const bounds = capaMunicipio.getBounds();
-  if (bounds.isValid()) {
-    mapaMunicipio.fitBounds(bounds, { padding: [22, 22] });
+  if (dibujado) {
+    setMapInfo(
+      `${municipio}, ${departamento}`,
+      "Polígono territorial cargado correctamente.",
+      `Archivo GeoJSON: ${decodeURIComponent(resultado.ruta)}`
+    );
   }
-
-  setMapInfo(
-    `${municipio}, ${departamento}`,
-    "Polígono territorial cargado correctamente.",
-    `Archivo GeoJSON: ${resultado.ruta}`
-  );
 }
 
 function poblarResultados(data) {
