@@ -12,17 +12,19 @@
       <header class="header">
         <h1>Protege y Proyecta tu Cosecha de Café</h1>
         <p class="subtitle">
-          Descubre de forma fácil cuánto podría producir tu cultivo y cuál sería el valor estimado de su cobertura.
+          Consulta la producción estimada de tu cultivo, su intervalo de confianza, el valor estimado de cobertura y la ubicación del municipio.
         </p>
 
         <div class="flow-guide">
           <span>1. Ingresa tus datos</span>
           <span>→</span>
-          <span>2. Revisa valores de referencia</span>
+          <span>2. Visualiza el municipio</span>
           <span>→</span>
-          <span>3. Consulta resultados</span>
+          <span>3. Revisa valores de referencia</span>
           <span>→</span>
-          <span>4. Entiende el resumen</span>
+          <span>4. Consulta resultados</span>
+          <span>→</span>
+          <span>5. Entiende el resumen</span>
         </div>
       </header>
 
@@ -40,6 +42,11 @@
         <div class="legend-badge result-badge">
           <span></span>
           Resultados calculados
+        </div>
+
+        <div class="legend-badge map-badge">
+          <span></span>
+          Municipio seleccionado
         </div>
       </section>
 
@@ -138,9 +145,23 @@
         </form>
       </section>
 
-      <section class="panel reference-panel">
+      <section class="panel map-panel">
         <div class="section-title">
           <span class="step">Paso 2</span>
+          <div>
+            <h2>Visualización del municipio</h2>
+            <p>El mapa usa el archivo GeoJSON del municipio seleccionado para mostrar el polígono territorial.</p>
+          </div>
+        </div>
+
+        <div class="map-layout">
+          <div id="mapaMunicipio" class="municipality-map" aria-label="Mapa del municipio seleccionado"></div>
+        </div>
+      </section>
+
+      <section class="panel reference-panel">
+        <div class="section-title">
+          <span class="step">Paso 3</span>
           <div>
             <h2>Valores de referencia</h2>
             <p>Estos valores ayudan a calcular la producción y el valor estimado de cobertura.</p>
@@ -179,10 +200,10 @@
 
       <section class="panel result-panel">
         <div class="section-title">
-          <span class="step">Paso 3</span>
+          <span class="step">Paso 4</span>
           <div>
             <h2>Resultado estimado</h2>
-            <p>Estos resultados se calculan automáticamente con la información disponible.</p>
+            <p>Estos resultados se calculan automáticamente con la información disponible e incluyen intervalos de confianza cuando la API los retorna.</p>
           </div>
         </div>
 
@@ -197,10 +218,20 @@
 
           <div class="result-card">
             <div class="result-title">
+              Rendimiento estimado
+              <span class="help-icon" data-tooltip="Rendimiento predicho para el municipio, expresado por hectárea.">?</span>
+            </div>
+            <strong id="rendimientoPredicho">Pendiente</strong>
+            <small id="intervaloRendimiento" class="result-foot">Intervalo: pendiente</small>
+          </div>
+
+          <div class="result-card">
+            <div class="result-title">
               Producción estimada
-              <span class="help-icon" data-tooltip="Cantidad estimada de café que podría producir el cultivo, expresada en toneladas.">?</span>
+              <span class="help-icon" data-tooltip="Cantidad estimada de café que podría producir el cultivo.">?</span>
             </div>
             <strong id="cosechaEstimada">Pendiente</strong>
+            <small id="intervaloCosecha" class="result-foot">Intervalo: pendiente</small>
           </div>
 
           <div class="result-card">
@@ -209,38 +240,47 @@
               <span class="help-icon" data-tooltip="Valor económico aproximado de la producción estimada.">?</span>
             </div>
             <strong id="valorCosecha">Pendiente</strong>
+            <small id="intervaloValorCosecha" class="result-foot">Intervalo: pendiente</small>
           </div>
 
           <div class="result-card">
             <div class="result-title">
-              Porcentaje cubierto
-              <span class="help-icon" data-tooltip="Porcentaje del valor estimado de la cosecha que sería cubierto.">?</span>
+              Cobertura sobre valor de cosecha
+              <span class="help-icon" data-tooltip="Relación entre el valor de apoyo estimado y el valor estimado de la cosecha. Si el cultivo no es elegible, este valor será 0.00%.">?</span>
             </div>
             <strong id="porcentajeCobertura">Pendiente</strong>
           </div>
 
-          <div class="result-card result-card-wide">
+          <div class="result-card">
             <div class="result-title">
               Valor estimado de la cobertura
               <span class="help-icon" data-tooltip="Monto aproximado que cubriría la protección o cobertura del cultivo.">?</span>
             </div>
             <strong id="valorCobertura">Pendiente</strong>
           </div>
+
+          <div class="result-card result-card-wide">
+            <div class="result-title">
+              Valor máximo a indemnizar
+              <span class="help-icon" data-tooltip="Valor máximo estimado de indemnización según el umbral y el mínimo histórico del municipio.">?</span>
+            </div>
+            <strong id="valorMaxIndemnizar">Pendiente</strong>
+          </div>
         </div>
       </section>
 
       <section class="panel summary-panel">
         <div class="section-title">
-          <span class="step">Paso 4</span>
+          <span class="step">Paso 5</span>
           <div>
             <h2>Resumen en palabras sencillas</h2>
             <p>Interpretación del resultado para facilitar la toma de decisiones.</p>
           </div>
         </div>
 
-        <p id="mensajeResultado" class="message">
-          Ingresa los datos de tu cultivo y presiona “Quiero estimar mi cosecha” para conocer una proyección de producción y cobertura.
-        </p>
+        <div id="mensajeResultado" class="message">
+          Ingresa los datos de tu cultivo y presiona “Quiero estimar mi cosecha” para conocer una proyección de producción, intervalos y cobertura.
+        </div>
       </section>
     </section>
   </main>

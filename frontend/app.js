@@ -1,6 +1,7 @@
 const API_BASE = window.location.origin;
 
 let municipiosDisponibles = [];
+let ultimoGeojsonCargado = null;
 
 const formatterCOP = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -19,46 +20,114 @@ const formatterNumber = new Intl.NumberFormat("es-CO", {
 });
 
 function setText(id, value) {
-  document.getElementById(id).textContent =
+  const element = document.getElementById(id);
+  if (!element) return;
+  element.textContent =
     value === null || value === undefined || value === "" ? "Pendiente" : value;
 }
 
-function formatCOP(value) {
-  if (value === null || value === undefined || isNaN(Number(value))) {
-    return "Pendiente";
+function getNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function pickValue(data, keys) {
+  for (const key of keys) {
+    if (data && data[key] !== undefined && data[key] !== null && data[key] !== "") {
+      return data[key];
+    }
   }
-  return formatterCOP.format(Number(value));
+  return null;
+}
+
+function pickNumber(data, keys) {
+  return getNumber(pickValue(data, keys));
+}
+
+function formatCOP(value) {
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
+  return formatterCOP.format(number);
 }
 
 function formatUSD(value) {
-  if (value === null || value === undefined || isNaN(Number(value))) {
-    return "Pendiente";
-  }
-  return formatterUSD.format(Number(value));
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
+  return formatterUSD.format(number);
 }
 
 function formatNumber(value) {
-  if (value === null || value === undefined || isNaN(Number(value))) {
-    return "Pendiente";
-  }
-  return formatterNumber.format(Number(value));
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
+  return formatterNumber.format(number);
+}
+
+function formatDecimal(value, decimals = 2) {
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
+  return number.toLocaleString("es-CO", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+}
+
+function formatInteger(value) {
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
+  return number.toLocaleString("es-CO", {
+    maximumFractionDigits: 0
+  });
 }
 
 function formatPercent(value) {
-  if (value === null || value === undefined || isNaN(Number(value))) {
-    return "Pendiente";
-  }
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
 
-  const numericValue = Number(value);
-  const percentValue = numericValue <= 1 ? numericValue * 100 : numericValue;
+  const percentValue = number <= 1 ? number * 100 : number;
 
   return `${formatNumber(percentValue)}%`;
 }
 
+function formatWithUnit(value, unit) {
+  const number = getNumber(value);
+  if (number === null) return "Pendiente";
+  return `${formatNumber(number)} ${unit}`;
+}
+
+function formatInterval(lower, upper, formatter, label = "Intervalo de confianza") {
+  const low = getNumber(lower);
+  const high = getNumber(upper);
+
+  if (low === null || high === null) {
+    return `${label}: pendiente`;
+  }
+
+  return `${label}: ${formatter(low)} – ${formatter(high)}`;
+}
+
 function mostrarMensaje(texto, esError = false) {
   const mensaje = document.getElementById("mensajeResultado");
+  if (!mensaje) return;
   mensaje.classList.toggle("error", esError);
+  mensaje.innerHTML = "";
   mensaje.textContent = texto;
+}
+
+function mostrarMensajeHTML(html, esError = false) {
+  const mensaje = document.getElementById("mensajeResultado");
+  if (!mensaje) return;
+  mensaje.classList.toggle("error", esError);
+  mensaje.innerHTML = html;
+}
+
+function escapeHTML(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function limpiarErrores() {
@@ -124,6 +193,40 @@ function limpiarTexto(valor) {
     .trim()
     .replace(/\s+/g, " ")
     .toUpperCase();
+}
+
+function removerAcentos(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizarParaArchivo(valor) {
+  return removerAcentos(valor)
+    .trim()
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_");
+}
+
+function titleCaseToken(token) {
+  if (!token) return token;
+  return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
+}
+
+function titleCaseArchivo(valor, lowerConnectors = false) {
+  const conectores = new Set(["de", "del", "la", "las", "los", "y"]);
+  return normalizarParaArchivo(valor)
+    .split("_")
+    .filter(Boolean)
+    .map((token, index) => {
+      const lower = token.toLowerCase();
+      if (lowerConnectors && index > 0 && conectores.has(lower)) {
+        return lower;
+      }
+      return titleCaseToken(token);
+    })
+    .join("_");
 }
 
 function normalizarMunicipioDepartamento(item) {
@@ -246,6 +349,7 @@ function cargarMunicipiosPorDepartamento(departamentoSeleccionado) {
   if (municipios.length === 0) {
     selectMunicipio.disabled = true;
     selectMunicipio.innerHTML = '<option value="">No hay municipios disponibles</option>';
+    setMapInfo("Sin municipio disponible", "No hay municipios disponibles para este departamento.", "Archivo GeoJSON: pendiente");
     return;
   }
 
@@ -257,6 +361,8 @@ function cargarMunicipiosPorDepartamento(departamentoSeleccionado) {
     option.textContent = municipio;
     selectMunicipio.appendChild(option);
   });
+
+  actualizarMapaMunicipio();
 }
 
 async function cargarDatosTerritoriales() {
@@ -284,6 +390,7 @@ async function cargarDatosTerritoriales() {
       selectMunicipio.innerHTML = '<option value="">No hay municipios disponibles</option>';
       selectMunicipio.disabled = true;
       mostrarMensaje("No se encontraron municipios disponibles para consultar.", true);
+      setMapInfo("Sin datos territoriales", "No se encontraron municipios disponibles para cargar el mapa.", "Archivo GeoJSON: pendiente");
       return;
     }
 
@@ -295,11 +402,599 @@ async function cargarDatosTerritoriales() {
     selectMunicipio.innerHTML = '<option value="">Error cargando municipios</option>';
     selectMunicipio.disabled = true;
     mostrarMensaje("No fue posible cargar la lista de departamentos y municipios. Revisa el estado del servicio.", true);
+    setMapInfo("Error cargando municipios", "No fue posible consultar el servicio de municipios.", "Archivo GeoJSON: pendiente");
   }
+}
+
+function inicializarMapa() {
+  const mapElement = document.getElementById("mapaMunicipio");
+
+  if (!mapElement) {
+    setMapInfo(
+      "Mapa no disponible",
+      "No se encontró el contenedor del mapa en el HTML.",
+      "Archivo GeoJSON: pendiente"
+    );
+    return;
+  }
+
+  mapElement.innerHTML = `
+    <div class="map-placeholder">
+      Selecciona departamento y municipio para cargar el polígono territorial desde la carpeta geojson.
+    </div>
+  `;
+}
+
+function setMapInfo(titulo, estado, archivo) {
+  setText("mapaTitulo", titulo);
+  setText("mapaEstado", estado);
+  setText("geojsonArchivo", archivo);
+}
+
+function construirNombresGeojson(departamento, municipio) {
+  const depTitle = titleCaseArchivo(departamento, false);
+  const depRaw = normalizarParaArchivo(departamento);
+
+  const municipiosBase = [municipio];
+  const municipioSinArticulo = limpiarTexto(municipio).replace(/^EL\s+/, "");
+
+  if (municipioSinArticulo && municipioSinArticulo !== limpiarTexto(municipio)) {
+    municipiosBase.push(municipioSinArticulo);
+  }
+
+  const nombres = [];
+
+  municipiosBase.forEach((mun) => {
+    const munTitle = titleCaseArchivo(mun, false);
+    const munTitleConConectores = titleCaseArchivo(mun, true);
+    const munRaw = normalizarParaArchivo(mun);
+    const munEspacios = titleCaseConEspacios(mun, true);
+
+    nombres.push(`${depTitle}_${munTitleConConectores}_polygons.geojson`);
+    nombres.push(`${depTitle}_${munTitle}_polygons.geojson`);
+    nombres.push(`${depTitle}_${munEspacios}_polygons.geojson`);
+    nombres.push(`${depRaw}_${munRaw}_polygons.geojson`);
+    nombres.push(`${depRaw.toLowerCase()}_${munRaw.toLowerCase()}_polygons.geojson`);
+  });
+
+  return Array.from(new Set(nombres));
+}
+
+function titleCaseConEspacios(valor, lowerConnectors = false) {
+  const conectores = new Set(["de", "del", "la", "las", "los", "y"]);
+  return removerAcentos(valor)
+    .trim()
+    .replace(/[^A-Za-z0-9\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((token, index) => {
+      const lower = token.toLowerCase();
+      if (lowerConnectors && index > 0 && conectores.has(lower)) {
+        return lower;
+      }
+      return titleCaseToken(token);
+    })
+    .join(" ");
+}
+
+function construirRutasGeojson(departamento, municipio) {
+  const nombres = construirNombresGeojson(departamento, municipio);
+  const bases = [
+    "/geojson",
+    "/static/geojson",
+    "./geojson",
+    "../geojson"
+  ];
+
+  const rutas = [];
+
+  nombres.forEach((nombre) => {
+    bases.forEach((base) => {
+      rutas.push(`${base}/${encodeURIComponent(nombre)}`);
+    });
+  });
+
+  return rutas;
+}
+
+async function cargarPrimerGeojsonDisponible(rutas) {
+  for (const ruta of rutas) {
+    try {
+      const response = await fetch(ruta, { cache: "no-cache" });
+      if (!response.ok) continue;
+
+      const geojson = await response.json();
+      return { geojson, ruta };
+    } catch (error) {
+      console.warn(`No se pudo cargar ${ruta}`, error);
+    }
+  }
+
+  return null;
+}
+
+function limpiarCapaMunicipio() {
+  const mapElement = document.getElementById("mapaMunicipio");
+  ultimoGeojsonCargado = null;
+
+  if (mapElement) {
+    mapElement.innerHTML = "";
+  }
+}
+
+function obtenerGeometrias(geojson) {
+  if (!geojson) return [];
+
+  if (geojson.type === "FeatureCollection") {
+    return geojson.features.flatMap((feature) => obtenerGeometrias(feature));
+  }
+
+  if (geojson.type === "Feature") {
+    return obtenerGeometrias(geojson.geometry);
+  }
+
+  if (geojson.type === "GeometryCollection") {
+    return geojson.geometries.flatMap((geometry) => obtenerGeometrias(geometry));
+  }
+
+  if (geojson.type === "Polygon") {
+    return [geojson.coordinates];
+  }
+
+  if (geojson.type === "MultiPolygon") {
+    return geojson.coordinates;
+  }
+
+  return [];
+}
+
+function extraerPuntos(poligonos) {
+  const puntos = [];
+
+  poligonos.forEach((polygon) => {
+    polygon.forEach((ring) => {
+      ring.forEach((coord) => {
+        if (Array.isArray(coord) && coord.length >= 2) {
+          const lon = Number(coord[0]);
+          const lat = Number(coord[1]);
+          if (Number.isFinite(lon) && Number.isFinite(lat)) {
+            puntos.push([lon, lat]);
+          }
+        }
+      });
+    });
+  });
+
+  return puntos;
+}
+
+function calcularBounds(puntos) {
+  const lons = puntos.map((p) => p[0]);
+  const lats = puntos.map((p) => p[1]);
+
+  return {
+    minLon: Math.min(...lons),
+    maxLon: Math.max(...lons),
+    minLat: Math.min(...lats),
+    maxLat: Math.max(...lats)
+  };
+}
+
+function crearProyector(bounds, width, height, padding) {
+  const lonRange = Math.max(bounds.maxLon - bounds.minLon, 0.000001);
+  const latRange = Math.max(bounds.maxLat - bounds.minLat, 0.000001);
+  const scale = Math.min((width - padding * 2) / lonRange, (height - padding * 2) / latRange);
+  const xOffset = (width - lonRange * scale) / 2;
+  const yOffset = (height - latRange * scale) / 2;
+
+  return ([lon, lat]) => {
+    const x = xOffset + (lon - bounds.minLon) * scale;
+    const y = yOffset + (bounds.maxLat - lat) * scale;
+    return [x, y];
+  };
+}
+
+function ringToPath(ring, project) {
+  const puntos = ring
+    .map((coord) => {
+      if (!Array.isArray(coord) || coord.length < 2) return null;
+      const lon = Number(coord[0]);
+      const lat = Number(coord[1]);
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+      return project([lon, lat]);
+    })
+    .filter(Boolean);
+
+  if (puntos.length === 0) return "";
+
+  return puntos
+    .map(([x, y], index) => `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`)
+    .join(" ") + " Z";
+}
+
+function polygonToPath(polygon, project) {
+  return polygon
+    .map((ring) => ringToPath(ring, project))
+    .filter(Boolean)
+    .join(" ");
+}
+
+function dibujarGeojson(geojson, municipio, departamento) {
+  const mapElement = document.getElementById("mapaMunicipio");
+  if (!mapElement) return false;
+
+  const poligonos = obtenerGeometrias(geojson);
+  const puntos = extraerPuntos(poligonos);
+
+  if (puntos.length === 0) {
+    mapElement.innerHTML = `
+      <div class="map-error">
+        El archivo GeoJSON se encontró, pero no contiene polígonos válidos para dibujar.
+      </div>
+    `;
+    return false;
+  }
+
+  const width = 1000;
+  const height = 620;
+  const padding = 56;
+  const bounds = calcularBounds(puntos);
+  const project = crearProyector(bounds, width, height, padding);
+
+  const paths = poligonos
+    .map((polygon) => polygonToPath(polygon, project))
+    .filter(Boolean);
+
+  const gridLines = [0.25, 0.5, 0.75]
+    .map((ratio) => {
+      const x = width * ratio;
+      const y = height * ratio;
+      return `<line class="map-grid" x1="${x}" y1="40" x2="${x}" y2="${height - 40}" />\n<line class="map-grid" x1="40" y1="${y}" x2="${width - 40}" y2="${y}" />`;
+    })
+    .join("\n");
+
+  mapElement.innerHTML = `
+    <svg class="geojson-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Polígono de ${municipio}, ${departamento}">
+      <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
+      ${gridLines}
+      <text class="map-label" x="56" y="54">${municipio}</text>
+      <text class="map-subtitle" x="56" y="84">${departamento} · Polígono municipal GeoJSON</text>
+      ${paths.map((path) => `<path class="municipio-borde" d="${path}"></path>`).join("\n")}
+      ${paths.map((path) => `<path class="municipio-poligono" d="${path}"></path>`).join("\n")}
+      <text class="map-subtitle" x="${width - 120}" y="${height - 36}">N ↑</text>
+    </svg>
+  `;
+
+  return true;
+}
+
+async function actualizarMapaMunicipio() {
+  const departamento = document.getElementById("departamento")?.value;
+  const municipio = document.getElementById("municipio")?.value;
+
+  limpiarCapaMunicipio();
+
+  if (!departamento || !municipio) {
+    inicializarMapa();
+    setMapInfo("Selecciona un municipio", "Cuando selecciones departamento y municipio, se cargará el polígono desde la carpeta geojson.", "Archivo GeoJSON: pendiente");
+    return;
+  }
+
+  setMapInfo(
+    `${municipio}, ${departamento}`,
+    "Cargando polígono territorial...",
+    "Archivo GeoJSON: buscando archivo compatible"
+  );
+
+  const rutas = construirRutasGeojson(departamento, municipio);
+  const resultado = await cargarPrimerGeojsonDisponible(rutas);
+
+  if (!resultado) {
+    const esperado = construirNombresGeojson(departamento, municipio)[0];
+    const mapElement = document.getElementById("mapaMunicipio");
+    if (mapElement) {
+      mapElement.innerHTML = `
+        <div class="map-error">
+          No se encontró el GeoJSON del municipio.<br>
+          Prueba abrir directamente: <code>/geojson/${esperado}</code>
+        </div>
+      `;
+    }
+    setMapInfo(
+      `${municipio}, ${departamento}`,
+      "No se encontró el archivo GeoJSON del municipio. Verifica que la API sirva /geojson y que Docker copie la carpeta geojson.",
+      `Archivo GeoJSON esperado: ${esperado}`
+    );
+    return;
+  }
+
+  ultimoGeojsonCargado = resultado.geojson;
+  const dibujado = dibujarGeojson(resultado.geojson, municipio, departamento);
+
+  if (dibujado) {
+    setMapInfo(
+      `${municipio}, ${departamento}`,
+      "Polígono territorial cargado correctamente.",
+      `Archivo GeoJSON: ${decodeURIComponent(resultado.ruta)}`
+    );
+  }
+}
+
+function pickBoolean(data, keys) {
+  const value = pickValue(data, keys);
+  if (value === null) return null;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "si", "sí", "yes", "y"].includes(normalized)) return true;
+  if (["false", "0", "no", "n"].includes(normalized)) return false;
+
+  return null;
+}
+
+function obtenerValoresResumen(data) {
+  const rendimiento = pickNumber(data, [
+    "rendimiento_predicho",
+    "Rendimiento_predicho",
+    "rendimiento_estimado_ton_ha",
+    "rendimiento_pred",
+    "Rendimiento"
+  ]);
+
+  const rendimientoInf = pickNumber(data, ["rendimiento_inf", "Rendimiento_inf"]);
+  const rendimientoSup = pickNumber(data, ["rendimiento_sup", "Rendimiento_sup"]);
+
+  const cosechaKg = pickNumber(data, [
+    "Cosecha_estimada",
+    "cosecha_estimada_kg",
+    "produccion_estimada_kg"
+  ]);
+  const cosechaTon = pickNumber(data, ["cosecha_estimada_ton", "produccion_estimada_ton"]);
+  const cosechaFinalKg = cosechaKg !== null ? cosechaKg : (cosechaTon !== null ? cosechaTon * 1000 : null);
+
+  const cosechaInfKg = pickNumber(data, [
+    "Cosecha_estimada_inf",
+    "cosecha_estimada_inf_kg",
+    "produccion_estimada_inf_kg"
+  ]);
+  const cosechaSupKg = pickNumber(data, [
+    "Cosecha_estimada_sup",
+    "cosecha_estimada_sup_kg",
+    "produccion_estimada_sup_kg"
+  ]);
+
+  const valorCosecha = pickNumber(data, [
+    "valor_estimado_cosecha_cop",
+    "Costo_cosecha",
+    "costo_cosecha",
+    "valor_cosecha_cop"
+  ]);
+  const valorCosechaInf = pickNumber(data, [
+    "costo_cosecha_lim_inf",
+    "Costo_cosecha_lim_inf",
+    "valor_estimado_cosecha_inf_cop",
+    "valor_cosecha_inf_cop"
+  ]);
+  const valorCosechaSup = pickNumber(data, [
+    "costo_cosecha_lim_sup",
+    "Costo_cosecha_lim_sup",
+    "valor_estimado_cosecha_sup_cop",
+    "valor_cosecha_sup_cop"
+  ]);
+
+  const umbral = pickNumber(data, [
+    "umbral_aseguramiento",
+    "pred_mpio_thresh",
+    "std_thresh_1",
+    "Std_thresh_1"
+  ]);
+
+  const valorCobertura = pickNumber(data, [
+    "valor_cobertura_cop",
+    "Valor_asegurado",
+    "valor_asegurado",
+    "valor_estimado_cobertura_cop"
+  ]);
+
+  const valorMaxIndemnizar = pickNumber(data, [
+    "Valor_max_indemnizar",
+    "valor_max_indemnizar",
+    "valor_maximo_indemnizar_cop"
+  ]);
+
+  let elegible = pickBoolean(data, [
+    "elegible_cobertura",
+    "elegible",
+    "es_elegible"
+  ]);
+
+  if (elegible === null && rendimiento !== null && umbral !== null) {
+    elegible = rendimiento < umbral;
+  }
+
+  return {
+    municipio: pickValue(data, ["municipio", "Municipio"]) || document.getElementById("municipio")?.value || "Pendiente",
+    departamento: pickValue(data, ["departamento", "Departamento"]) || document.getElementById("departamento")?.value || "",
+    year: pickValue(data, ["year_usado", "Year", "year"]) || document.getElementById("year")?.value || "Pendiente",
+    areaHa: pickNumber(data, ["area_ha", "Area_ha"]) || getNumber(document.getElementById("area_ha")?.value),
+    rendimiento,
+    rendimientoInf,
+    rendimientoSup,
+    cosechaKg: cosechaFinalKg,
+    cosechaInfKg,
+    cosechaSupKg,
+    valorCosecha,
+    valorCosechaInf,
+    valorCosechaSup,
+    umbral,
+    valorCobertura,
+    valorMaxIndemnizar,
+    elegible
+  };
+}
+
+function intervaloTexto(inferior, superior, formatter, unidad = "") {
+  const low = getNumber(inferior);
+  const high = getNumber(superior);
+
+  if (low === null || high === null) {
+    return "No disponible";
+  }
+
+  const suffix = unidad ? ` ${unidad}` : "";
+  return `${formatter(low)} a ${formatter(high)}${suffix}`;
+}
+
+function buildResumenHTML(data) {
+  const valores = obtenerValoresResumen(data);
+
+  const municipio = String(valores.municipio || "Pendiente").toUpperCase();
+  const departamento = String(valores.departamento || "").toUpperCase();
+  const ubicacion = departamento ? `${municipio} - ${departamento}` : municipio;
+  const year = valores.year || "Pendiente";
+  const areaHaTexto = valores.areaHa !== null ? formatDecimal(valores.areaHa, 2) : "Pendiente";
+
+  const rendimientoTexto = valores.rendimiento !== null
+    ? formatDecimal(valores.rendimiento, 4)
+    : "Pendiente";
+  const rendimientoIntervalo = valores.rendimientoInf !== null && valores.rendimientoSup !== null
+    ? `[${formatDecimal(valores.rendimientoInf, 4)}, ${formatDecimal(valores.rendimientoSup, 4)}]`
+    : "[pendiente]";
+
+  const cosechaTexto = valores.cosechaKg !== null
+    ? formatInteger(valores.cosechaKg)
+    : "Pendiente";
+  const cosechaIntervalo = valores.cosechaInfKg !== null && valores.cosechaSupKg !== null
+    ? `[${formatInteger(valores.cosechaInfKg)}, ${formatInteger(valores.cosechaSupKg)}]`
+    : "[pendiente]";
+
+  const valorCosechaTexto = valores.valorCosecha !== null
+    ? `${formatInteger(valores.valorCosecha)} COP`
+    : "Pendiente";
+  const valorCosechaIntervalo = valores.valorCosechaInf !== null && valores.valorCosechaSup !== null
+    ? `[${formatInteger(valores.valorCosechaInf)}, ${formatInteger(valores.valorCosechaSup)}]`
+    : "[pendiente]";
+
+  const umbralTexto = valores.umbral !== null
+    ? formatDecimal(valores.umbral, 4)
+    : "Pendiente";
+
+  const elegibilidadTexto = valores.elegible
+    ? "es elegible para recibir apoyo"
+    : "no es elegible para recibir apoyo";
+
+  const texto = `Según la información climática y satelital disponible para ${ubicacion}, usando el año ${year}, el rendimiento predicho es ${rendimientoTexto} ton/ha con intervalo ${rendimientoIntervalo} ton/ha. La cosecha estimada para ${areaHaTexto} hectáreas es ${cosechaTexto} kg con intervalo ${cosechaIntervalo} kg. El valor estimado de la cosecha es ${valorCosechaTexto} con intervalo ${valorCosechaIntervalo} COP. Con el umbral de aseguramiento ${umbralTexto} ton/ha, el cultivo ${elegibilidadTexto}.`;
+
+  return escapeHTML(texto);
+}
+
+function poblarResultados(data) {
+  const precioLocalLb =
+    pickNumber(data, ["precio_local_cop_lb", "Precio_local_cop_lb"]) ??
+    (
+      pickNumber(data, ["precio_local_cop_kg", "Precio_local_cop_kg"]) !== null
+        ? pickNumber(data, ["precio_local_cop_kg", "Precio_local_cop_kg"]) / 2.20462
+        : null
+    );
+
+  const rendimiento = pickNumber(data, [
+    "rendimiento_predicho",
+    "Rendimiento_predicho",
+    "rendimiento_pred",
+    "Rendimiento"
+  ]);
+
+  const rendimientoInf = pickNumber(data, ["rendimiento_inf", "Rendimiento_inf"]);
+  const rendimientoSup = pickNumber(data, ["rendimiento_sup", "Rendimiento_sup"]);
+
+  const cosechaTon = pickNumber(data, ["cosecha_estimada_ton", "produccion_estimada_ton"]);
+  const cosechaKg = pickNumber(data, ["Cosecha_estimada", "cosecha_estimada_kg", "produccion_estimada_kg"]);
+  const cosechaInfKg = pickNumber(data, ["Cosecha_estimada_inf", "cosecha_estimada_inf_kg", "produccion_estimada_inf_kg"]);
+  const cosechaSupKg = pickNumber(data, ["Cosecha_estimada_sup", "cosecha_estimada_sup_kg", "produccion_estimada_sup_kg"]);
+
+  const valorCosecha = pickNumber(data, [
+    "valor_estimado_cosecha_cop",
+    "Costo_cosecha",
+    "costo_cosecha",
+    "valor_cosecha_cop"
+  ]);
+  const valorCosechaInf = pickNumber(data, [
+    "costo_cosecha_lim_inf",
+    "Costo_cosecha_lim_inf",
+    "valor_estimado_cosecha_inf_cop",
+    "valor_cosecha_inf_cop"
+  ]);
+  const valorCosechaSup = pickNumber(data, [
+    "costo_cosecha_lim_sup",
+    "Costo_cosecha_lim_sup",
+    "valor_estimado_cosecha_sup_cop",
+    "valor_cosecha_sup_cop"
+  ]);
+
+  const valorCobertura = pickNumber(data, [
+    "valor_cobertura_cop",
+    "Valor_asegurado",
+    "valor_asegurado",
+    "valor_estimado_cobertura_cop"
+  ]);
+
+  const valorMaxIndemnizar = pickNumber(data, [
+    "Valor_max_indemnizar",
+    "valor_max_indemnizar",
+    "valor_maximo_indemnizar_cop"
+  ]);
+
+  setText("trm", pickNumber(data, ["trm_cop_usd", "TRM"]) !== null ? formatCOP(pickNumber(data, ["trm_cop_usd", "TRM"])) : "Pendiente de consulta");
+  setText("precioInternacional", pickNumber(data, ["precio_internacional_usd_lb", "Precio_internacional_usd_lb"]) !== null ? formatUSD(pickNumber(data, ["precio_internacional_usd_lb", "Precio_internacional_usd_lb"])) : "Pendiente de consulta");
+  setText("precioLocal", precioLocalLb !== null ? `${formatCOP(precioLocalLb)} / lb` : "Pendiente de consulta");
+
+  setText("tipoRespuesta", "Consulta exitosa");
+  setText("rendimientoPredicho", rendimiento !== null ? `${formatNumber(rendimiento)} ton/ha` : "Pendiente");
+  setText("intervaloRendimiento", formatInterval(rendimientoInf, rendimientoSup, (value) => `${formatNumber(value)} ton/ha`));
+
+  if (cosechaKg !== null) {
+    setText("cosechaEstimada", `${formatNumber(cosechaKg)} kg`);
+  } else if (cosechaTon !== null) {
+    setText("cosechaEstimada", `${formatNumber(cosechaTon)} ton`);
+  } else {
+    setText("cosechaEstimada", "Pendiente");
+  }
+
+  setText("intervaloCosecha", formatInterval(cosechaInfKg, cosechaSupKg, (value) => `${formatNumber(value)} kg`));
+  setText("valorCosecha", valorCosecha !== null ? formatCOP(valorCosecha) : "Pendiente");
+  setText("intervaloValorCosecha", formatInterval(valorCosechaInf, valorCosechaSup, formatCOP));
+
+  const porcentajeCoberturaApi = pickValue(data, [
+    "porcentaje_cobertura",
+    "Porcentaje_cobertura"
+  ]);
+
+  let coberturaSobreValorCosecha = 0;
+
+  if (porcentajeCoberturaApi !== null && !Number.isNaN(Number(porcentajeCoberturaApi))) {
+    const porcentajeApi = Number(porcentajeCoberturaApi);
+    coberturaSobreValorCosecha = porcentajeApi > 1 ? porcentajeApi / 100 : porcentajeApi;
+  } else if (
+    valorCosecha !== null &&
+    Number(valorCosecha) > 0 &&
+    valorCobertura !== null
+  ) {
+    coberturaSobreValorCosecha = Math.max(0, Number(valorCobertura)) / Number(valorCosecha);
+  }
+
+  setText("porcentajeCobertura", `${(coberturaSobreValorCosecha * 100).toFixed(2)}%`);
+  setText("valorCobertura", valorCobertura !== null ? formatCOP(valorCobertura) : "Pendiente");
+  setText("valorMaxIndemnizar", valorMaxIndemnizar !== null ? formatCOP(valorMaxIndemnizar) : "Pendiente");
 }
 
 document.getElementById("departamento").addEventListener("change", function () {
   cargarMunicipiosPorDepartamento(this.value);
+});
+
+document.getElementById("municipio").addEventListener("change", function () {
+  actualizarMapaMunicipio();
 });
 
 document.getElementById("consultaForm").addEventListener("submit", async function (event) {
@@ -346,28 +1041,10 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
       return;
     }
 
-    const precioLocalLb =
-      data.precio_local_cop_lb ??
-      (
-        data.precio_local_cop_kg
-          ? Number(data.precio_local_cop_kg) / 2.20462
-          : null
-      );
+    poblarResultados(data);
+    actualizarMapaMunicipio();
 
-    setText("trm", data.trm_cop_usd ? formatCOP(data.trm_cop_usd) : "Pendiente de consulta");
-    setText("precioInternacional", data.precio_internacional_usd_lb ? formatUSD(data.precio_internacional_usd_lb) : "Pendiente de consulta");
-    setText("precioLocal", precioLocalLb ? `${formatCOP(precioLocalLb)} / lb` : "Pendiente de consulta");
-
-    setText("tipoRespuesta", "Consulta exitosa");
-    setText("cosechaEstimada", data.cosecha_estimada_ton ? `${formatNumber(data.cosecha_estimada_ton)} ton` : "Pendiente");
-    setText("valorCosecha", data.valor_estimado_cosecha_cop ? formatCOP(data.valor_estimado_cosecha_cop) : "Pendiente");
-    setText("porcentajeCobertura", data.porcentaje_cobertura !== undefined ? formatPercent(data.porcentaje_cobertura) : "Pendiente");
-    setText("valorCobertura", data.valor_cobertura_cop ? formatCOP(data.valor_cobertura_cop) : "Pendiente");
-
-    mostrarMensaje(
-      data.mensaje ??
-      "Consulta realizada correctamente. Ya puedes ver una proyección de producción y el valor estimado de cobertura para tu cultivo."
-    );
+    mostrarMensajeHTML(buildResumenHTML(data));
 
   } catch (error) {
     console.error("Error consultando el servicio:", error);
@@ -382,4 +1059,5 @@ document.getElementById("consultaForm").addEventListener("submit", async functio
   }
 });
 
+inicializarMapa();
 cargarDatosTerritoriales();

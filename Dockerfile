@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY train_model.py .
 COPY app.py .
 COPY frontend/ frontend/
+COPY geojson/ geojson/
 COPY ["Data anual/", "Data anual/"]
 
 # Entrena el modelo durante la construcción de la imagen.
