@@ -140,16 +140,19 @@ Respuesta esperada para usuario activo:
 
 ## Municipios ocultos en el frontend
 
-El frontend oculta algunos municipios de la lista desplegable mediante una lista de exclusión en `frontend/app.js`.
+El frontend excluye algunos municipios de la lista desplegable mediante una lista de exclusión definida en `frontend/app.js`.
+
+Esta exclusión se implementó después de revisar los resultados generados por el modelo para ciertos municipios. En particular, se identificaron registros con comportamientos atípicos o poco consistentes frente al resto de la muestra, lo que podía afectar la interpretación funcional de la herramienta durante la consulta por parte del usuario final.
+
+Por esta razón, estos municipios no se muestran temporalmente en el selector de la aplicación, aunque sus datos puedan seguir existiendo en los archivos base del proyecto. La decisión permite mantener una experiencia de usuario más controlada y evita presentar estimaciones que requieren revisión adicional antes de ser expuestas en la interfaz.
 
 Municipios ocultos actualmente:
 
 ```text
 SANTANDER__AGUADA
 SANTANDER__PUENTE NACIONAL
-SANTANDER__VALLE DE SAN JOSÉ
+SANTANDER__VALLE DE SAN JOSE
 BOYACA__SANTANA
-```
 
 ## Visualización GeoJSON
 
