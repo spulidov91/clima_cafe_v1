@@ -181,6 +181,7 @@ function mostrarPantallaLogin(message = "") {
   }
 
   if (loginNumeroIdentidad) {
+    loginNumeroIdentidad.value = "";
     loginNumeroIdentidad.focus();
   }
 
