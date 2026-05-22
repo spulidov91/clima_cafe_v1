@@ -1,4 +1,4 @@
-# Clima Café v1 — API, Frontend y Despliegue en AWS
+# Clima Café — API, Frontend y Despliegue en AWS
 
 Aplicación web para estimar la cosecha de café, visualizar el municipio del cultivo, calcular intervalos de confianza y estimar valores económicos asociados a cobertura/aseguramiento. El proyecto integra un backend en FastAPI, un frontend en HTML/CSS/JavaScript, artefactos de modelo, archivos GeoJSON y despliegue Docker en AWS EC2.
 
