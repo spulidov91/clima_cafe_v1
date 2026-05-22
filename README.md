@@ -153,7 +153,7 @@ SANTANDER__AGUADA
 SANTANDER__PUENTE NACIONAL
 SANTANDER__VALLE DE SAN JOSE
 BOYACA__SANTANA
-
+```
 ## Visualización GeoJSON
 
 Los polígonos municipales se encuentran en `geojson/` y la API los sirve mediante `/geojson`.
