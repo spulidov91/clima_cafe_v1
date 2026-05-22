@@ -1222,6 +1222,22 @@ if (municipioElement) {
   });
 }
 
+const btnLogout = document.getElementById("btnLogout");
+
+if (btnLogout) {
+  btnLogout.addEventListener("click", function () {
+    sessionStorage.removeItem(LOGIN_STORAGE_KEY);
+
+    const numeroIdentidad = document.getElementById("numero_identidad");
+    if (numeroIdentidad) {
+      numeroIdentidad.value = "";
+      numeroIdentidad.readOnly = true;
+    }
+
+    mostrarPantallaLogin("Sesión cerrada. Ingresa nuevamente para continuar.");
+  });
+}
+
 const consultaForm = document.getElementById("consultaForm");
 if (consultaForm) {
   consultaForm.addEventListener("submit", async function (event) {
