@@ -161,7 +161,7 @@ Los polígonos municipales se encuentran en `geojson/` y la API los sirve median
 Ejemplo:
 
 ```text
-http://IP_PUBLICA_EC2:802/geojson/Boyaca_Moniquira_polygons.geojson
+[http://IP_PUBLICA_EC2:802/geojson/Boyaca_Moniquira_polygons.geojson](http://54.175.83.229:802/geojson/Boyaca_Moniquira_polygons.geojson)
 ```
 
 El frontend carga dinámicamente el archivo correspondiente al departamento y municipio seleccionado. La visualización se hace directamente en SVG, sin depender de librerías externas.
