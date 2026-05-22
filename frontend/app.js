@@ -1,7 +1,9 @@
 const API_BASE = window.location.origin;
+const LOGIN_STORAGE_KEY = "clima_cafe_usuario_autorizado";
 
 let municipiosDisponibles = [];
 let ultimoGeojsonCargado = null;
+let appInicializada = false;
 
 const formatterCOP = new Intl.NumberFormat("es-CO", {
   style: "currency",
@@ -130,6 +132,195 @@ function escapeHTML(value) {
     .replace(/'/g, "&#039;");
 }
 
+/* =========================================================
+   LOGIN DE USUARIOS REGISTRADOS
+   ========================================================= */
+
+function getLoginElements() {
+  return {
+    loginScreen: document.getElementById("loginScreen"),
+    appScreen: document.getElementById("appScreen"),
+    loginForm: document.getElementById("loginForm"),
+    loginNumeroIdentidad: document.getElementById("loginNumeroIdentidad"),
+    loginError: document.getElementById("loginError"),
+    btnLogin: document.getElementById("btnLogin"),
+    numeroIdentidad: document.getElementById("numero_identidad")
+  };
+}
+
+function setLoginError(message) {
+  const { loginError } = getLoginElements();
+  if (loginError) {
+    loginError.textContent = message || "";
+  }
+}
+
+function normalizarNumeroIdentidad(value) {
+  return String(value || "").trim();
+}
+
+function bloquearNumeroIdentidad(numeroIdentidadAutorizado) {
+  const { numeroIdentidad } = getLoginElements();
+
+  if (numeroIdentidad) {
+    numeroIdentidad.value = numeroIdentidadAutorizado;
+    numeroIdentidad.readOnly = true;
+    numeroIdentidad.classList.add("login-locked-field");
+  }
+}
+
+function mostrarPantallaLogin(message = "") {
+  const { loginScreen, appScreen, loginNumeroIdentidad } = getLoginElements();
+
+  if (loginScreen) {
+    loginScreen.style.display = "flex";
+  }
+
+  if (appScreen) {
+    appScreen.classList.add("app-hidden");
+  }
+
+  if (loginNumeroIdentidad) {
+    loginNumeroIdentidad.focus();
+  }
+
+  setLoginError(message);
+}
+
+function mostrarAplicacion(numeroIdentidadAutorizado) {
+  const { loginScreen, appScreen } = getLoginElements();
+
+  sessionStorage.setItem(LOGIN_STORAGE_KEY, numeroIdentidadAutorizado);
+  bloquearNumeroIdentidad(numeroIdentidadAutorizado);
+
+  if (loginScreen) {
+    loginScreen.style.display = "none";
+  }
+
+  if (appScreen) {
+    appScreen.classList.remove("app-hidden");
+  }
+
+  inicializarAppSiHaceFalta();
+}
+
+async function validarLogin(numeroIdentidadValor) {
+  const response = await fetch(`${API_BASE}/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      numero_identidad: numeroIdentidadValor
+    })
+  });
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch (error) {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const detail = data && data.detail ? data.detail : "Usuario no autorizado o inactivo.";
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+
+  if (!data || data.autorizado !== true) {
+    throw new Error("Usuario no autorizado.");
+  }
+
+  return data;
+}
+
+async function inicializarLogin() {
+  const {
+    loginScreen,
+    appScreen,
+    loginForm,
+    loginNumeroIdentidad,
+    btnLogin
+  } = getLoginElements();
+
+  /*
+    Si el HTML todavía no tiene pantalla de login, no bloqueamos la app.
+    Esto evita errores mientras se despliega gradualmente el cambio.
+  */
+  if (!loginScreen || !appScreen || !loginForm || !loginNumeroIdentidad) {
+    inicializarAppSiHaceFalta();
+    return;
+  }
+
+  mostrarPantallaLogin();
+
+  const usuarioGuardado = sessionStorage.getItem(LOGIN_STORAGE_KEY);
+
+  if (usuarioGuardado) {
+    try {
+      setLoginError("Validando sesión guardada...");
+      const data = await validarLogin(usuarioGuardado);
+      mostrarAplicacion(data.numero_identidad || usuarioGuardado);
+      return;
+    } catch (error) {
+      console.warn("Sesión guardada no válida:", error);
+      sessionStorage.removeItem(LOGIN_STORAGE_KEY);
+      mostrarPantallaLogin("Tu sesión no está activa. Ingresa nuevamente.");
+    }
+  }
+
+  loginForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+
+    const numeroIdentidadValor = normalizarNumeroIdentidad(loginNumeroIdentidad.value);
+
+    setLoginError("");
+
+    if (!numeroIdentidadValor) {
+      setLoginError("Ingresa tu número de identidad.");
+      return;
+    }
+
+    if (!/^[0-9]+$/.test(numeroIdentidadValor)) {
+      setLoginError("El número de identidad debe contener solo números.");
+      return;
+    }
+
+    if (btnLogin) {
+      btnLogin.disabled = true;
+      btnLogin.textContent = "Validando acceso...";
+    }
+
+    try {
+      const data = await validarLogin(numeroIdentidadValor);
+      mostrarAplicacion(data.numero_identidad || numeroIdentidadValor);
+    } catch (error) {
+      console.error("Error validando login:", error);
+      sessionStorage.removeItem(LOGIN_STORAGE_KEY);
+      setLoginError(error.message || "Usuario no autorizado o inactivo.");
+    } finally {
+      if (btnLogin) {
+        btnLogin.disabled = false;
+        btnLogin.textContent = "Ingresar";
+      }
+    }
+  });
+}
+
+function inicializarAppSiHaceFalta() {
+  if (appInicializada) return;
+
+  inicializarMapa();
+  cargarDatosTerritoriales();
+
+  appInicializada = true;
+}
+
+/* =========================================================
+   VALIDACIONES DEL FORMULARIO PRINCIPAL
+   ========================================================= */
+
 function limpiarErrores() {
   [
     "numero_identidad",
@@ -187,6 +378,10 @@ function validarFormulario(payload) {
 
   return valido;
 }
+
+/* =========================================================
+   UTILIDADES DE TEXTO Y MUNICIPIOS
+   ========================================================= */
 
 function limpiarTexto(valor) {
   return String(valor || "")
@@ -306,8 +501,14 @@ function obtenerRegistrosUnicos(listaOriginal) {
   });
 }
 
+/* =========================================================
+   CARGA DE DEPARTAMENTOS Y MUNICIPIOS
+   ========================================================= */
+
 function cargarDepartamentos() {
   const selectDepartamento = document.getElementById("departamento");
+
+  if (!selectDepartamento) return;
 
   const departamentos = Array.from(
     new Set(municipiosDisponibles.map((item) => item.departamento))
@@ -339,6 +540,8 @@ function cargarDepartamentos() {
 function cargarMunicipiosPorDepartamento(departamentoSeleccionado) {
   const selectMunicipio = document.getElementById("municipio");
 
+  if (!selectMunicipio) return;
+
   const municipios = municipiosDisponibles
     .filter((item) => item.departamento === departamentoSeleccionado)
     .map((item) => item.municipio)
@@ -368,6 +571,8 @@ function cargarMunicipiosPorDepartamento(departamentoSeleccionado) {
 async function cargarDatosTerritoriales() {
   const selectDepartamento = document.getElementById("departamento");
   const selectMunicipio = document.getElementById("municipio");
+
+  if (!selectDepartamento || !selectMunicipio) return;
 
   try {
     const response = await fetch(`${API_BASE}/municipios`);
@@ -405,6 +610,10 @@ async function cargarDatosTerritoriales() {
     setMapInfo("Error cargando municipios", "No fue posible consultar el servicio de municipios.", "Archivo GeoJSON: pendiente");
   }
 }
+
+/* =========================================================
+   MAPA GEOJSON
+   ========================================================= */
 
 function inicializarMapa() {
   const mapElement = document.getElementById("mapaMunicipio");
@@ -721,6 +930,10 @@ async function actualizarMapaMunicipio() {
   }
 }
 
+/* =========================================================
+   RESULTADOS, INTERVALOS Y RESUMEN
+   ========================================================= */
+
 function pickBoolean(data, keys) {
   const value = pickValue(data, keys);
   if (value === null) return null;
@@ -788,7 +1001,8 @@ function obtenerValoresResumen(data) {
     "umbral_aseguramiento",
     "pred_mpio_thresh",
     "std_thresh_1",
-    "Std_thresh_1"
+    "Std_thresh_1",
+    "rendimiento_umbral_aseguramiento"
   ]);
 
   const valorCobertura = pickNumber(data, [
@@ -989,75 +1203,115 @@ function poblarResultados(data) {
   setText("valorMaxIndemnizar", valorMaxIndemnizar !== null ? formatCOP(valorMaxIndemnizar) : "Pendiente");
 }
 
-document.getElementById("departamento").addEventListener("change", function () {
-  cargarMunicipiosPorDepartamento(this.value);
-});
+/* =========================================================
+   EVENTOS
+   ========================================================= */
 
-document.getElementById("municipio").addEventListener("change", function () {
-  actualizarMapaMunicipio();
-});
+const departamentoElement = document.getElementById("departamento");
+if (departamentoElement) {
+  departamentoElement.addEventListener("change", function () {
+    cargarMunicipiosPorDepartamento(this.value);
+  });
+}
 
-document.getElementById("consultaForm").addEventListener("submit", async function (event) {
-  event.preventDefault();
+const municipioElement = document.getElementById("municipio");
+if (municipioElement) {
+  municipioElement.addEventListener("change", function () {
+    actualizarMapaMunicipio();
+  });
+}
 
-  const btn = document.getElementById("btnConsultar");
+const consultaForm = document.getElementById("consultaForm");
+if (consultaForm) {
+  consultaForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
 
-  const payload = {
-    numero_identidad: document.getElementById("numero_identidad").value.trim(),
-    departamento: document.getElementById("departamento").value.trim(),
-    municipio: document.getElementById("municipio").value.trim(),
-    area_ha: Number(document.getElementById("area_ha").value),
-    year: Number(document.getElementById("year").value)
-  };
+    const btn = document.getElementById("btnConsultar");
 
-  if (!validarFormulario(payload)) {
-    mostrarMensaje("Por favor revisa los campos marcados antes de calcular la estimación.", true);
-    return;
-  }
+    const usuarioAutorizado = sessionStorage.getItem(LOGIN_STORAGE_KEY);
+    const numeroIdentidadCampo = document.getElementById("numero_identidad");
 
-  btn.disabled = true;
-  btn.textContent = "Calculando tu estimación...";
-  mostrarMensaje("Estamos procesando la información de tu cultivo. En unos segundos verás el resultado.");
-
-  try {
-    const response = await fetch(`${API_BASE}/consulta`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      setText("tipoRespuesta", "No procesada");
-      mostrarMensaje(
-        data.detail
-          ? `No fue posible procesar la consulta: ${JSON.stringify(data.detail)}`
-          : "No fue posible procesar la consulta. Revisa los datos ingresados.",
-        true
-      );
+    if (!usuarioAutorizado) {
+      mostrarPantallaLogin("Debes ingresar con un usuario autorizado antes de consultar.");
       return;
     }
 
-    poblarResultados(data);
-    actualizarMapaMunicipio();
+    if (numeroIdentidadCampo && !numeroIdentidadCampo.value) {
+      numeroIdentidadCampo.value = usuarioAutorizado;
+    }
 
-    mostrarMensajeHTML(buildResumenHTML(data));
+    const payload = {
+      numero_identidad: document.getElementById("numero_identidad").value.trim(),
+      departamento: document.getElementById("departamento").value.trim(),
+      municipio: document.getElementById("municipio").value.trim(),
+      area_ha: Number(document.getElementById("area_ha").value),
+      year: Number(document.getElementById("year").value)
+    };
 
-  } catch (error) {
-    console.error("Error consultando el servicio:", error);
-    setText("tipoRespuesta", "Error de conexión");
-    mostrarMensaje(
-      "No fue posible consultar el servicio. Revisa la conexión o el estado de la aplicación.",
-      true
-    );
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Quiero estimar mi cosecha";
-  }
-});
+    if (!validarFormulario(payload)) {
+      mostrarMensaje("Por favor revisa los campos marcados antes de calcular la estimación.", true);
+      return;
+    }
 
-inicializarMapa();
-cargarDatosTerritoriales();
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Calculando tu estimación...";
+    }
+
+    mostrarMensaje("Estamos procesando la información de tu cultivo. En unos segundos verás el resultado.");
+
+    try {
+      const response = await fetch(`${API_BASE}/consulta`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setText("tipoRespuesta", "No procesada");
+
+        if (response.status === 403) {
+          sessionStorage.removeItem(LOGIN_STORAGE_KEY);
+          mostrarPantallaLogin("Usuario no autorizado o inactivo. Ingresa nuevamente.");
+          return;
+        }
+
+        mostrarMensaje(
+          data.detail
+            ? `No fue posible procesar la consulta: ${JSON.stringify(data.detail)}`
+            : "No fue posible procesar la consulta. Revisa los datos ingresados.",
+          true
+        );
+        return;
+      }
+
+      poblarResultados(data);
+      actualizarMapaMunicipio();
+
+      mostrarMensajeHTML(buildResumenHTML(data));
+
+    } catch (error) {
+      console.error("Error consultando el servicio:", error);
+      setText("tipoRespuesta", "Error de conexión");
+      mostrarMensaje(
+        "No fue posible consultar el servicio. Revisa la conexión o el estado de la aplicación.",
+        true
+      );
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Quiero estimar mi cosecha";
+      }
+    }
+  });
+}
+
+/* =========================================================
+   ARRANQUE
+   ========================================================= */
+
+inicializarLogin();
