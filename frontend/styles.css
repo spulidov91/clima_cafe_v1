@@ -940,3 +940,28 @@ button:disabled {
   padding: 2px 8px;
   font-weight: 800;
 }
+
+.session-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.logout-button {
+  width: auto;
+  min-width: 140px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: #eef5ff;
+  color: #245dcb;
+  border: 2px solid #9ec3ff;
+  box-shadow: none;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.logout-button:hover {
+  background: #dbeafe;
+  color: #16325c;
+  transform: translateY(-1px);
+}
