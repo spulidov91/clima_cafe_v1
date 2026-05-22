@@ -944,9 +944,12 @@ button:disabled {
 .session-actions {
   display: flex;
   justify-content: center;
-  margin-top: 18px;
 }
 
+.session-actions-bottom {
+  margin-top: 26px;
+  padding-top: 12px;
+}
 .logout-button {
   width: auto;
   min-width: 140px;
