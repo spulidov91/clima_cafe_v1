@@ -497,9 +497,13 @@ function obtenerRegistrosUnicos(listaOriginal) {
 
     const clave = `${registro.departamento}__${registro.municipio}`;
 
-    if (!mapa.has(clave)) {
-      mapa.set(clave, registro);
+    if (MUNICIPIOS_OCULTOS.has(clave)) {
+    return;
     }
+
+if (!mapa.has(clave)) {
+  mapa.set(clave, registro);
+}
   });
 
   return Array.from(mapa.values()).sort((a, b) => {
