@@ -11,6 +11,7 @@ COPY app.py .
 COPY frontend/ frontend/
 COPY geojson/ geojson/
 COPY ["Data anual/", "Data anual/"]
+COPY ["Data prod/", "Data prod/"]
 
 # Entrena el modelo durante la construcción de la imagen.
 # Requiere que Data anual/data_anual_total.xlsx exista en el repositorio.
