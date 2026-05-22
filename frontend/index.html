@@ -6,8 +6,45 @@
   <title>Protege y Proyecta tu Cosecha de Café</title>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
+
 <body>
-  <main class="page">
+  <!-- Pantalla inicial de login -->
+  <section id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <h1>Ingreso autorizado</h1>
+      <p>
+        Ingresa tu número de identidad para acceder a la herramienta de estimación de cosecha y cobertura.
+      </p>
+
+      <form id="loginForm" class="login-form" novalidate>
+        <label for="loginNumeroIdentidad">
+          Número de identidad
+          <span
+            class="help-icon"
+            data-tooltip="Solo podrán ingresar usuarios registrados y activos en la base autorizada."
+          >?</span>
+        </label>
+
+        <div class="field-block">
+          <input
+            class="editable-field"
+            type="text"
+            id="loginNumeroIdentidad"
+            placeholder="Ejemplo: 1019000363"
+            required
+          />
+          <small id="loginError" class="field-error"></small>
+        </div>
+
+        <button type="submit" id="btnLogin">
+          Ingresar
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Aplicación principal: se muestra solo después del login -->
+  <main id="appScreen" class="page app-hidden">
     <section class="solution">
       <header class="header">
         <h1>Protege y Proyecta tu Cosecha de Café</h1>
@@ -63,7 +100,7 @@
           <div class="form-row">
             <label for="numero_identidad">
               Número de identidad
-              <span class="help-icon" data-tooltip="Número de identificación del productor o usuario. Debe contener solo números.">?</span>
+              <span class="help-icon" data-tooltip="Número de identificación del productor o usuario. Se carga automáticamente después del ingreso autorizado.">?</span>
             </label>
             <div class="field-block">
               <input
@@ -72,6 +109,7 @@
                 id="numero_identidad"
                 placeholder="Ejemplo: 1015000353"
                 required
+                readonly
               />
               <small id="error_numero_identidad" class="field-error"></small>
             </div>
