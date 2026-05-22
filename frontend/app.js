@@ -5,6 +5,13 @@ let municipiosDisponibles = [];
 let ultimoGeojsonCargado = null;
 let appInicializada = false;
 
+const MUNICIPIOS_OCULTOS = new Set([
+  "SANTANDER__AGUADA",
+  "SANTANDER__PUENTE NACIONAL",
+  "SANTANDER__VALLE DE SAN JOSE",
+  "BOYACA__SANTANA"
+]);
+
 const formatterCOP = new Intl.NumberFormat("es-CO", {
   style: "currency",
   currency: "COP",
