@@ -31,7 +31,7 @@ PRECIO_COP_FILE = path_from_env("PRECIO_COP_FILE", "Data anual/Precio_COP.csv")
 PRECIOS_INT_FILE = path_from_env("PRECIOS_INT_FILE", "Data anual/Precios.csv")
 FRONTEND_DIR = path_from_env("FRONTEND_DIR", "frontend")
 GEOJSON_DIR = path_from_env("GEOJSON_DIR", "geojson")
-
+USUARIOS_FILE = path_from_env("USUARIOS_FILE", "Data prod/usuarios_registrados.csv")
 TRM_COP_USD = float(os.getenv("TRM_COP_USD", "3650"))
 PRECIO_INTERNACIONAL_USD_LB = float(os.getenv("PRECIO_INTERNACIONAL_USD_LB", "3.30"))
 PRECIO_LOCAL_COP_KG = float(os.getenv("PRECIO_LOCAL_COP_KG", "12500"))
@@ -48,7 +48,7 @@ _artifact_cache = None
 _precios_cache: Optional[pd.DataFrame] = None
 _predicciones_cache: Optional[pd.DataFrame] = None
 _predicciones_stats_cache: dict[int, pd.DataFrame] = {}
-
+_usuarios_cache: Optional[pd.DataFrame] = None
 
 class ConsultaRequest(BaseModel):
     numero_identidad: str = Field(..., examples=["1019000363"])
@@ -73,7 +73,15 @@ class ConsultaRequest(BaseModel):
         ),
         examples=[2380.22131147541],
     )
+class LoginRequest(BaseModel):
+    numero_identidad: str = Field(..., examples=["1019000363"])
 
+
+class LoginResponse(BaseModel):
+    autorizado: bool
+    numero_identidad: str
+    estado: str
+    mensaje: str
 
 class ConsultaResponse(BaseModel):
     tipo_respuesta_api: int
@@ -148,6 +156,67 @@ def first_value(series: pd.Series, default=None):
         return default
     return value
 
+def load_usuarios_registrados() -> pd.DataFrame:
+    """
+    Carga usuarios autorizados desde Data prod/usuarios_registrados.csv.
+
+    El archivo debe tener estas columnas:
+    - id_usuario
+    - estado
+
+    Solo se permite ingreso si estado == activo.
+    """
+    global _usuarios_cache
+
+    if _usuarios_cache is not None:
+        return _usuarios_cache
+
+    if not USUARIOS_FILE.exists():
+        raise FileNotFoundError(f"No existe USUARIOS_FILE: {USUARIOS_FILE}")
+
+    usuarios = pd.read_csv(USUARIOS_FILE, dtype={"id_usuario": str, "estado": str})
+
+    required_cols = {"id_usuario", "estado"}
+    missing_cols = required_cols - set(usuarios.columns)
+    if missing_cols:
+        raise ValueError(
+            f"Faltan columnas en {USUARIOS_FILE}: {sorted(missing_cols)}"
+        )
+
+    usuarios["id_usuario"] = usuarios["id_usuario"].astype(str).str.strip()
+    usuarios["estado"] = usuarios["estado"].astype(str).str.strip().str.lower()
+
+    _usuarios_cache = usuarios
+    return _usuarios_cache
+
+
+def validar_usuario_activo(numero_identidad: str) -> dict:
+    """
+    Valida que el número de identidad exista y esté activo.
+    """
+    usuarios = load_usuarios_registrados()
+    numero = str(numero_identidad).strip()
+
+    usuario = usuarios[usuarios["id_usuario"] == numero]
+
+    if usuario.empty:
+        raise HTTPException(
+            status_code=403,
+            detail="Usuario no autorizado. El número de identidad no está registrado.",
+        )
+
+    estado = str(usuario["estado"].iloc[0]).strip().lower()
+
+    if estado != "activo":
+        raise HTTPException(
+            status_code=403,
+            detail="Usuario no autorizado. El usuario está inactivo.",
+        )
+
+    return {
+        "numero_identidad": numero,
+        "estado": estado,
+    }
 
 def load_raw_df() -> pd.DataFrame:
     global _raw_df_cache
@@ -469,7 +538,7 @@ def startup_event():
     load_artifact()
     load_precios_cosecha()
     load_predicciones()
-
+    load_usuarios_registrados()
 
 @app.get("/health")
 def health():
@@ -490,6 +559,9 @@ def health():
         "frontend_dir": str(FRONTEND_DIR),
         "geojson_dir": str(GEOJSON_DIR),
         "geojson_exists": GEOJSON_DIR.exists(),
+        "usuarios_file": str(USUARIOS_FILE),
+        "usuarios_file_exists": USUARIOS_FILE.exists(),
+        "rows_usuarios": len(load_usuarios_registrados()),
         "rows_raw": len(raw_df),
         "rows_processed": len(processed_df),
         "rows_predictions": len(pred_df),
@@ -498,6 +570,16 @@ def health():
         "metrics": artifact.get("metrics", {}),
     }
 
+@app.post("/login", response_model=LoginResponse)
+def login(payload: LoginRequest):
+    usuario = validar_usuario_activo(payload.numero_identidad)
+
+    return LoginResponse(
+        autorizado=True,
+        numero_identidad=usuario["numero_identidad"],
+        estado=usuario["estado"],
+        mensaje="Usuario autorizado.",
+    )
 
 @app.get("/municipios")
 def municipios():
@@ -513,18 +595,20 @@ def municipios():
 
 @app.post("/cache/refresh")
 def cache_refresh():
-    global _raw_df_cache, _processed_df_cache, _artifact_cache, _precios_cache, _predicciones_cache, _predicciones_stats_cache
+    global _raw_df_cache, _processed_df_cache, _artifact_cache, _precios_cache, _predicciones_cache, _predicciones_stats_cache, _usuarios_cache
     _raw_df_cache = None
     _processed_df_cache = None
     _artifact_cache = None
     _precios_cache = None
     _predicciones_cache = None
     _predicciones_stats_cache = {}
+    _usuarios_cache = None
     return health()
 
 
 @app.post("/consulta", response_model=ConsultaResponse)
 def consulta(payload: ConsultaRequest):
+    validar_usuario_activo(payload.numero_identidad)
     artifact = load_artifact()
     pipeline = artifact["pipeline"]
 
