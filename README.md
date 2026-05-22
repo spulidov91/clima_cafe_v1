@@ -566,3 +566,6 @@ Proyecto desarrollado como prueba de concepto para estimación de cosecha, visua
 
 ```text
 Data anual/data_anual_total.xlsx
+```
+
+Nota: Durante el desarrollo de este proyecto se utilizaron herramientas de inteligencia artificial generativa como apoyo. Las decisiones metodológicas, validaciones, interpretación de resultados y responsabilidad final del contenido corresponden al equipo desarrollador del proyecto.
